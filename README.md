@@ -1,4 +1,4 @@
-# Viisualising-Trending-Youtube-Videos-Statistics
+# Visualizing-Trending-Youtube-Videos-Statistics
 
 ## Overview
 This project focuses on analyzing YouTube video data to gain insights into trends, engagement metrics, and content performance. The analysis was performed using Python for data processing and visualization, and a Tableau dashboard was built for interactive exploration.

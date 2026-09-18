@@ -1,0 +1,24 @@
+{
+  "process_name": "Defective Parts Return",
+  "summary": "SYNTHETIC FIXTURE. Leading networks decide returnability early, capture disposition as structured data, and treat the return stream as a quality feedback loop rather than a cost to be administered.",
+  "leading_practices": [
+    {"title": "Decide returnability at the point of diagnosis", "description": "The judgement about whether a part should travel is made in the workshop, guided by the system, so invalid returns never enter the network.", "maturity": "leading", "applies_to_step": "Dealer raises return request", "evidence": [{"quote": "Leaders decide returnability at the point of diagnosis, before the part leaves the dealership.", "url": "https://www.mckinsey.com/industries/automotive/our-insights/aftersales-returns", "source_title": "Aftersales returns"}]},
+    {"title": "Structured disposition coding", "description": "Inspection outcomes are captured as codes against a controlled vocabulary instead of free text, making the return stream analysable.", "maturity": "established", "applies_to_step": "Technical inspection and disposition", "evidence": [{"quote": "Structured disposition codes allow the return stream to be analysed as a quality signal.", "url": "https://www.apqc.org/resource-library/returns-process", "source_title": "Returns process framework"}]},
+    {"title": "Settlement speed as a dealer loyalty lever", "description": "Claims settle within 5 days at leading players and fill rate improves as a result.", "maturity": "established", "applies_to_step": "Credit or rejection", "evidence": [{"quote": "Leaders decide returnability at the point of diagnosis, before the part leaves the dealership.", "url": "https://www.mckinsey.com/industries/automotive/our-insights/aftersales-returns", "source_title": "Aftersales returns"}]}
+  ],
+  "common_operating_models": [
+    "Regional return centres with a single technical inspection authority per region",
+    "Dealer self-service for initiation and status, with exception handling by a central team"
+  ],
+  "automation_and_digital_enablers": [
+    "Guided diagnosis at the dealer that gates the return request",
+    "Photographic evidence captured at initiation and carried through inspection",
+    "Status visibility shared with the dealer from initiation to settlement"
+  ],
+  "risks_and_failure_modes": [
+    "Free-text defect capture that cannot be analysed",
+    "Inspection evidence held outside the system of record, which drives disputes",
+    "Return decisions made after transport has already been paid for"
+  ],
+  "scholarly_works": []
+}

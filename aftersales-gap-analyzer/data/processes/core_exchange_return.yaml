@@ -1,0 +1,42 @@
+process_id: core_exchange_return
+process_name: Core and Exchange Unit Return
+business_area: Automotive aftersales logistics
+owner: Remanufacturing and Core Management
+source_system: SAP ECC
+target_system: SAP S/4HANA
+description: >
+  A dealer fits a remanufactured exchange unit and returns the old core. The OEM tracks the
+  core obligation, receives and grades the core, and credits the core deposit accordingly.
+scope_in:
+  - Core obligation created when an exchange unit is sold
+  - Core return, receipt and grading
+  - Core deposit credit or forfeiture
+scope_out: [Remanufacturing operations, Supplier core purchasing]
+systems_involved: [Dealer portal, SAP ECC, Warehouse management, Grading spreadsheet]
+roles: [Dealer parts manager, Core controller, Grading technician, Finance]
+steps:
+  - name: Core obligation raised
+    actor: Core controller
+    system: SAP ECC
+    description: Selling an exchange unit creates a core obligation against the dealer.
+    pain_points: [Obligations are tracked in a custom table with no dealer visibility]
+  - name: Dealer returns core
+    actor: Dealer parts manager
+    system: Dealer portal
+    description: The dealer books the core return and ships it to the core centre.
+    pain_points: [Dealers miss return windows because reminders are manual]
+  - name: Core receipt and grading
+    actor: Grading technician
+    system: Warehouse management + spreadsheet
+    description: The core is received, graded A/B/C or rejected, and the grade is recorded offline.
+    pain_points: [Grading disputes are frequent with no photographic evidence trail]
+  - name: Deposit credit or forfeiture
+    actor: Finance
+    system: SAP ECC
+    description: Credit is issued by grade, or the deposit is forfeited when no core arrives.
+    pain_points: [Forfeiture decisions are hard to defend without grading evidence]
+known_pain_points:
+  - Core obligation visibility is poor on both sides
+  - Grading evidence is not systematic, driving disputes
+custom_objects:
+  - ZCORE_OBLIG - custom core obligation table

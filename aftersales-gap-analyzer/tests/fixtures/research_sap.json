@@ -1,0 +1,21 @@
+{
+  "text": "SYNTHETIC FIXTURE. Public SAP documentation describes a returns process that starts with a returns order, continues with a returns delivery and inbound receipt, adds an inspection step whose outcome drives the follow-up activity, and closes with a credit memo. The inspection outcome determines the follow-up activity for the returned material. A separate page describes the delivery tolerance check performed during goods receipt, which is out of scope here. Warehouse handling of the inbound return is documented for the embedded warehouse component.",
+  "queries": [
+    "SAP S/4HANA Defective Parts Return standard process flow",
+    "SAP S/4HANA advanced returns management",
+    "SAP EWM returns inbound delivery process",
+    "SAP Claims Management and Handling automotive dealer claims"
+  ],
+  "hits": [
+    {"url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "title": "Returns Processing", "query": "SAP S/4HANA Defective Parts Return standard process flow", "snippet": ""},
+    {"url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-inspection", "title": "Inspection at Returns Receipt", "query": "SAP S/4HANA advanced returns management", "snippet": ""},
+    {"url": "https://help.sap.com/docs/SAP_EWM/inbound-returns", "title": "Inbound Processing of Returns", "query": "SAP EWM returns inbound delivery process", "snippet": ""},
+    {"url": "https://community.sap.com/t5/blogs/returns-in-s4hana", "title": "Returns in S/4HANA", "query": "SAP S/4HANA advanced returns management", "snippet": ""},
+    {"url": "https://en.wikipedia.org/wiki/SAP_ERP", "title": "SAP ERP", "query": "SAP returns", "snippet": ""}
+  ],
+  "citations": [
+    {"url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "title": "Returns Processing", "cited_text": "The returns order is created with reference to the original sales document and triggers the returns delivery."},
+    {"url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-inspection", "title": "Inspection at Returns Receipt", "cited_text": "The inspection result determines the follow-up activity for the returned material."},
+    {"url": "https://help.sap.com/docs/SAP_EWM/inbound-returns", "title": "Inbound Processing of Returns", "cited_text": "Returned products are received against an inbound delivery and put away or moved to a scrapping area."}
+  ]
+}

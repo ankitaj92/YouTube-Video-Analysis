@@ -1,0 +1,66 @@
+# SAP area hints - SEARCH GUIDANCE ONLY.
+#
+# ############################################################################
+# # THESE ARE QUERY-CONSTRUCTION HINTS, NOT SAP FACTS.                       #
+# #                                                                          #
+# # Nothing in this file may ever be asserted in a design document. The       #
+# # pipeline only uses these strings to build web-search queries against      #
+# # official SAP domains. Every SAP statement that reaches the report must    #
+# # be backed by a retrieved public SAP source; hints that find no source     #
+# # simply produce no finding.                                               #
+# ############################################################################
+
+areas:
+  - id: sd
+    label: SAP SD (Sales & Distribution)
+    search_terms:
+      - "SAP S/4HANA Sales returns order process"
+      - "SAP SD returns delivery billing credit memo process flow"
+      - "SAP S/4HANA advanced returns management"
+      - "SAP S/4HANA sales document type returns"
+    relevance: "Customer/dealer facing return order, credit memo and billing leg."
+
+  - id: ewm
+    label: SAP EWM (Extended Warehouse Management)
+    search_terms:
+      - "SAP EWM returns inbound delivery process"
+      - "SAP EWM quality inspection returns warehouse process"
+      - "SAP S/4HANA embedded EWM inbound putaway process flow"
+      - "SAP EWM value added services returns handling"
+    relevance: "Physical receipt, inspection, putaway, scrap and repack of returned parts."
+
+  - id: cmh
+    label: SAP CMH (Claims, Returns and Refund Management) - dealer claims and returns
+    search_terms:
+      - "SAP Claims Management and Handling automotive dealer claims"
+      - "SAP CMH claim processing returns refund management"
+      - "SAP S/4HANA claims returns and refund management process"
+      - "SAP warranty claim processing automotive OEM"
+    relevance: "Dealer claim intake, validation, settlement and the return that follows it."
+
+  - id: master_data
+    label: Master data
+    search_terms:
+      - "SAP S/4HANA material master aftersales spare parts views"
+      - "SAP business partner customer vendor master data S/4HANA"
+      - "SAP S/4HANA batch serial number management spare parts"
+      - "SAP master data governance material S/4HANA"
+    relevance: "Material, business partner, serial/batch and pricing master data that gates the process."
+
+  - id: dealer_frontend_sop
+    label: Dealer front-end / SOp (Sales Order Plus)
+    search_terms:
+      - "SAP Sales Order Plus dealer portal automotive"
+      - "SAP automotive dealer front end order entry solution"
+      - "SAP Fiori app return order creation dealer self service"
+      - "SAP S/4HANA automotive dealer business management"
+    relevance: "Channel through which a dealer raises the return/claim and tracks its status."
+
+  - id: aftersales
+    label: Aftersales / service parts
+    search_terms:
+      - "SAP S/4HANA service parts management aftersales process"
+      - "SAP automotive aftersales spare parts logistics solution"
+      - "SAP S/4HANA service management repair order process"
+      - "SAP advanced returns management inspection follow-up activities"
+    relevance: "End-to-end service parts and aftersales operating context."

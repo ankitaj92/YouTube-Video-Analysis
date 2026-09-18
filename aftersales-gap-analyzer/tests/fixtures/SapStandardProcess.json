@@ -1,0 +1,24 @@
+{
+  "process_name": "Defective Parts Return",
+  "summary": "SYNTHETIC FIXTURE. A returns order drives a returns delivery, an inbound receipt, an inspection whose outcome selects the follow-up activity, and a credit memo.",
+  "standard_process_flow": [
+    {"seq": 1, "name": "Create returns order", "description": "The returns order is created with reference to the preceding sales document.", "sap_area": "Sales", "evidence": [{"quote": "The returns order is created with reference to the original sales document and triggers the returns delivery.", "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "source_title": "Returns Processing"}]},
+    {"seq": 2, "name": "Returns delivery and inbound receipt", "description": "Returned products are received against an inbound delivery.", "sap_area": "Warehouse", "evidence": [{"quote": "Returned products are received against an inbound delivery and put away or moved to a scrapping area.", "url": "https://help.sap.com/docs/SAP_EWM/inbound-returns", "source_title": "Inbound Processing of Returns"}]},
+    {"seq": 3, "name": "Inspection and follow-up activity", "description": "The inspection result determines the follow-up activity. The delivery tolerance is also checked at this point.", "sap_area": "Returns processing", "evidence": [{"quote": "The inspection result determines the follow-up activity for the returned material.", "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-inspection", "source_title": "Inspection at Returns Receipt"}]},
+    {"seq": 4, "name": "Credit memo", "description": "A credit memo settles the confirmed return with the customer.", "sap_area": "Billing", "evidence": [{"quote": "The returns order is created with reference to the original sales document and triggers the returns delivery.", "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "source_title": "Returns Processing"}]}
+  ],
+  "modules": [
+    {"name": "Sales", "role_in_process": "Returns order, returns delivery and credit memo.", "evidence": [{"quote": "The returns order is created with reference to the original sales document and triggers the returns delivery.", "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "source_title": "Returns Processing"}]},
+    {"name": "Extended Warehouse Management", "role_in_process": "Physical receipt, putaway and scrapping of returned product.", "evidence": [{"quote": "Returned products are received against an inbound delivery and put away or moved to a scrapping area.", "url": "https://help.sap.com/docs/SAP_EWM/inbound-returns", "source_title": "Inbound Processing of Returns"}]}
+  ],
+  "tcodes": [
+    {"tcode": "VA01", "purpose": "Create sales document", "sap_area": "Sales", "source_url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "supporting_quote": "Use transaction VA01 to create the returns order."},
+    {"tcode": "VL01N", "purpose": "Create outbound delivery", "sap_area": "Logistics execution", "source_url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-processing", "supporting_quote": "Transaction VL01N creates the delivery."},
+    {"tcode": "ZRET9", "purpose": "Claimed returns cockpit", "sap_area": "Returns", "source_url": "https://en.wikipedia.org/wiki/SAP_ERP", "supporting_quote": "Not an SAP source."},
+    {"tcode": "MIGO", "purpose": "Goods movement", "sap_area": "Inventory", "source_url": "https://help.sap.com/docs/SAP_EWM/inbound-returns", "supporting_quote": "Recalled from memory, not present on the page."}
+  ],
+  "master_data_objects": ["Material master", "Business partner", "Serial number"],
+  "integration_points": ["Inbound delivery to warehouse execution", "Billing to finance"],
+  "s4_specific_changes": ["Returns processing is documented as an integrated flow in S/4HANA."],
+  "open_questions": ["Whether the dealer front-end is covered by a standard SAP application was not established from the retrieved sources."]
+}

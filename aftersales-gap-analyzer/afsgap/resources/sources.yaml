@@ -1,0 +1,107 @@
+# Source credibility model.
+#
+# sap_official    : the ONLY domains a T-code, module name or standard process
+#                   step may be sourced from. Anything outside this list is
+#                   research colour, never an SAP fact.
+# industry_credible: the allowlist industry benchmark findings are filtered
+#                   against AFTER a normal (unrestricted) web search.
+# scholarly       : handled separately through the OpenAlex API.
+# denied          : never usable, even if a search returns them.
+
+sap_official:
+  - help.sap.com
+  - support.sap.com
+  - launchpad.support.sap.com
+  - api.sap.com
+  - community.sap.com
+  - blogs.sap.com
+  - news.sap.com
+  - learning.sap.com
+  - open.sap.com
+  - sap.com
+  - training.sap.com
+  - discovery-center.cloud.sap
+  - influence.sap.com
+  - me.sap.com
+
+industry_credible:
+  consultancy:
+    - mckinsey.com
+    - bcg.com
+    - bain.com
+    - deloitte.com
+    - pwc.com
+    - kpmg.com
+    - ey.com
+    - accenture.com
+    - capgemini.com
+    - infosys.com
+    - tcs.com
+    - wipro.com
+    - rolandberger.com
+    - oliverwyman.com
+    - atkearney.com
+    - kearney.com
+    - strategyand.pwc.com
+    - arthurdlittle.com
+    - lek.com
+  standards_body:
+    - apqc.org
+    - ascm.org
+    - scor.ascm.org
+    - vda.de
+    - odette.org
+    - aiag.org
+    - iso.org
+    - jama.or.jp
+    - acea.auto
+    - sae.org
+    - gs1.org
+  research_institute:
+    - fraunhofer.de
+    - rwth-aachen.de
+    - mit.edu
+    - cam.ac.uk
+    - wmg.warwick.ac.uk
+    - ifm.eng.cam.ac.uk
+    - nist.gov
+    - europa.eu
+  industry_body_press:
+    - automotivelogistics.media
+    - autonews.com
+    - just-auto.com
+    - aftermarket.org
+    - autocare.org
+    - clepa.eu
+    - figiefa.eu
+  analyst:
+    - gartner.com
+    - forrester.com
+    - idc.com
+
+scholarly:
+  - openalex.org
+  - doi.org
+  - sciencedirect.com
+  - springer.com
+  - link.springer.com
+  - tandfonline.com
+  - emerald.com
+  - mdpi.com
+  - ieee.org
+  - elsevier.com
+  - researchgate.net
+
+denied:
+  - pinterest.com
+  - quora.com
+  - reddit.com
+  - facebook.com
+  - x.com
+  - twitter.com
+  - medium.com
+  - slideshare.net
+  - scribd.com
+  - coursehero.com
+  - studocu.com
+  - chegg.com

@@ -1,0 +1,123 @@
+process_id: defective_parts_return
+process_name: Defective Parts Return
+business_area: Automotive aftersales logistics
+owner: Aftersales Supply Chain / Dealer Operations
+source_system: SAP ECC
+target_system: SAP S/4HANA
+description: >
+  A dealer identifies a part as defective during or after a repair and returns it to the
+  OEM regional distribution centre. The dealer raises the return, ships the part, the DC
+  receives and inspects it, and the dealer is credited or the claim is rejected. Today the
+  process spans the dealer portal, ECC sales and warehouse transactions, and a
+  spreadsheet-driven technical inspection step.
+
+scope_in:
+  - Dealer-initiated return of a part believed defective
+  - Physical return to the regional distribution centre
+  - Technical inspection and disposition of the returned part
+  - Credit to the dealer account, or rejection with reason
+scope_out:
+  - Vehicle-level warranty repair authorisation
+  - Core/exchange unit returns (covered by a separate process)
+  - Supplier recovery and supplier debit
+
+systems_involved:
+  - Dealer portal (custom front-end)
+  - SAP ECC
+  - Warehouse management
+  - Inspection spreadsheet (Excel, shared drive)
+  - Email
+
+roles:
+  - Dealer parts manager
+  - OEM aftersales claims clerk
+  - DC goods receipt operator
+  - Technical inspector
+  - Aftersales finance
+
+steps:
+  - name: Dealer raises return request
+    actor: Dealer parts manager
+    system: Dealer portal
+    description: >
+      The dealer enters part number, quantity, vehicle identification number, repair order
+      reference and a free-text defect description, and attaches photographs.
+    outputs: [Return request]
+    pain_points:
+      - Free-text defect description makes downstream triage manual
+      - No validation that the part is actually returnable, so invalid requests travel far
+
+  - name: Claims clerk reviews and authorises
+    actor: OEM aftersales claims clerk
+    system: SAP ECC + email
+    description: >
+      A clerk reviews the request against the parts catalogue and the dealer's history and
+      either authorises it or rejects it by email. Authorised requests are keyed manually
+      into ECC as a returns order.
+    inputs: [Return request]
+    outputs: [Returns order, Return authorisation number]
+    pain_points:
+      - Double keying between the portal and ECC
+      - Authorisation decisions are not recorded in a structured, reportable way
+      - Turnaround depends on one team's working hours
+
+  - name: Dealer ships the part
+    actor: Dealer parts manager
+    system: Dealer portal
+    description: >
+      The dealer prints the authorisation, packs the part and books a collection. Carrier
+      tracking is captured only in the carrier's own portal.
+    pain_points:
+      - No shipment visibility inside SAP until the part physically arrives
+
+  - name: Goods receipt at the distribution centre
+    actor: DC goods receipt operator
+    system: Warehouse management + SAP ECC
+    description: >
+      The DC receives the carton, matches it to the return authorisation and posts a goods
+      receipt into returns stock. A quantity mismatch is resolved by phone with the dealer
+      and the delivery tolerance is checked before the receipt is posted.
+    outputs: [Goods receipt document]
+    pain_points:
+      - Unidentifiable cartons accumulate in a quarantine bay
+      - Receipt posting is delayed at peak, so dealers chase status
+
+  - name: Technical inspection and disposition
+    actor: Technical inspector
+    system: Inspection spreadsheet
+    description: >
+      An inspector tests the part, decides whether the defect is confirmed, and records the
+      outcome and the disposition (scrap, return to stock, send to supplier) in a shared
+      spreadsheet. The spreadsheet is reconciled against ECC weekly.
+    outputs: [Inspection outcome, Disposition decision]
+    pain_points:
+      - Inspection evidence lives outside SAP and is not auditable
+      - Weekly reconciliation means credit is slow and disputes are common
+      - No structured defect coding, so no feedback loop to engineering or the supplier
+
+  - name: Credit or rejection
+    actor: Aftersales finance
+    system: SAP ECC
+    description: >
+      Confirmed defects trigger a credit memo to the dealer. Rejected returns are notified
+      by email and the part is scrapped or returned to the dealer at the dealer's cost.
+    outputs: [Credit memo, Rejection notification]
+    pain_points:
+      - Rejection reasons are inconsistent, which drives dealer disputes
+      - Finance has no line of sight to the inspection evidence behind a credit
+
+known_pain_points:
+  - The process spans four systems with manual handoffs between each
+  - Dealers cannot see status between shipping and credit
+  - Inspection outcomes are not structured data, so root-cause analysis is impossible
+  - Custom ECC enhancements will not carry forward to S/4HANA unchanged
+
+custom_objects:
+  - ZRET_AUTH - custom return authorisation table and number range
+  - ZRET_REPORT - custom ABAP report reconciling returns against credits
+  - Custom IDoc extension carrying the portal's defect free-text into ECC
+
+notes: >
+  The move to S/4HANA is the trigger to redesign rather than lift and shift. The programme
+  wants to know, per process, whether the current design is already competitive or whether
+  SAP standard and industry practice offer something materially better.

@@ -1,0 +1,41 @@
+# KPI / measurement vocabulary. Industry benchmark content must stay KPI-FREE:
+# the benchmark answers "what practice is used", never "what number is good".
+#
+# Detection is two-layered:
+#   1. numeric patterns  - any quantified target, rate, percentage or duration
+#   2. metric vocabulary - named KPIs even when no number is present
+#
+# Patterns are case-insensitive Python regular expressions.
+
+numeric_patterns:
+  - '\d+(?:\.\d+)?\s?%'                                  # 95%, 99.5 %
+  - '\bpercent(?:age)?\s+(?:of|reduction|increase|improvement)\b'
+  - '\b\d+(?:\.\d+)?\s?(?:x|times)\s+(?:faster|higher|lower|better)\b'
+  - '\bwithin\s+\d+\s+(?:hour|day|week|month)s?\b'
+  - '\b\d+(?:\.\d+)?\s?(?:hours?|days?|weeks?)\s+(?:turnaround|lead\s?time|cycle\s?time|to\s+settle)\b'
+  - '\breduc\w+\s+by\s+\d+'
+  - '\bimprov\w+\s+by\s+\d+'
+  - '\btarget\s+of\s+\d+'
+  - '\b(?:top|bottom)\s+quartile\b'
+  - '\b\d+(?:\.\d+)?\s?(?:eur|usd|gbp|\$|€|£)\b'
+
+metric_patterns:
+  - '\bkpi[s]?\b'
+  - '\bmetric[s]?\b'
+  - '\bbenchmark\s+(?:figure|number|value|score|data)\b'
+  - '\bfill\s?rate\b'
+  - '\botif\b'
+  - '\bon[-\s]time\s+(?:in[-\s]full|delivery)\b'
+  - '\bfirst[-\s]time[-\s](?:right|fix)\s+rate\b'
+  - '\bservice\s+level\s+(?:agreement|target|attainment)\b'
+  - '\bturn(?:around)?\s?time\b'
+  - '\bcycle\s?time\b'
+  - '\blead\s?time\b'
+  - '\bdso\b'
+  - '\binventory\s+turn(?:over|s)?\b'
+  - '\bcost\s+per\s+(?:claim|return|line|order|shipment)\b'
+  - '\bclaim\s+settlement\s+time\b'
+  - '\bscrap\s+rate\b'
+  - '\brecovery\s+rate\b'
+  - '\baccuracy\s+rate\b'
+  - '\bbacklog\s+(?:days|hours)\b'

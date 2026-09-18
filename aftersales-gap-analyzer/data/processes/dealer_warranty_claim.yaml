@@ -1,0 +1,52 @@
+process_id: dealer_warranty_claim
+process_name: Dealer Warranty Claim Processing
+business_area: Automotive aftersales logistics
+owner: Aftersales Claims
+source_system: SAP ECC
+target_system: SAP S/4HANA
+description: >
+  A dealer submits a warranty claim for labour and parts after a repair under warranty.
+  The OEM validates entitlement, prices the claim, settles it against the dealer account
+  and, for selected parts, requests the part back for technical examination.
+scope_in:
+  - Claim submission by the dealer
+  - Entitlement and policy validation
+  - Claim pricing and settlement
+  - Parts recall for examination linked to the claim
+scope_out:
+  - Supplier recovery
+  - Goodwill outside warranty policy
+systems_involved: [Dealer portal, SAP ECC, Claims engine, Email]
+roles: [Dealer service advisor, Warranty administrator, Technical assessor, Finance]
+steps:
+  - name: Dealer submits claim
+    actor: Dealer service advisor
+    system: Dealer portal
+    description: Claim is submitted with repair order, labour lines, parts consumed and fault codes.
+    pain_points: [Fault coding is optional, so claims arrive incomplete]
+  - name: Entitlement validation
+    actor: Warranty administrator
+    system: SAP ECC
+    description: Coverage is checked against vehicle build and campaign data, largely manually.
+    pain_points: [Manual checks create a backlog and inconsistent decisions]
+  - name: Claim pricing
+    actor: Warranty administrator
+    system: SAP ECC
+    description: Labour times and parts prices are applied from rate tables maintained offline.
+    pain_points: [Rate tables drift between markets]
+  - name: Settlement
+    actor: Finance
+    system: SAP ECC
+    description: Approved claims are credited to the dealer account in a periodic batch.
+    pain_points: [Batch settlement delays dealer cash flow and hides disputes]
+  - name: Parts recall for examination
+    actor: Technical assessor
+    system: Email
+    description: Selected parts are requested back and examined; findings are recorded offline.
+    pain_points: [No structured link between claim, part and examination finding]
+known_pain_points:
+  - Validation and pricing are manual and inconsistent across markets
+  - No closed loop between examination findings and claim decisions
+custom_objects:
+  - ZWTY_RATE - custom labour rate table
+  - ZWTY_VALID - custom entitlement validation program

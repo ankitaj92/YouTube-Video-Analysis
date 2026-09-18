@@ -1,0 +1,87 @@
+"""Final gate over the rendered document.
+
+The last line of defence: whatever the filters and prompts did upstream, the
+document that leaves this tool is scanned one more time for excluded topics and
+for ungrounded transaction codes.
+"""
+
+from __future__ import annotations
+
+import re
+
+from .filters.kpi import KpiFilter
+from .filters.tolerance import ToleranceFilter
+from .models import RunResult, ValidationReport
+from .research.tcode import find_tcode_mentions
+
+_INDUSTRY_SECTION = re.compile(r"^## 4\. Industry practice benchmark(.*?)(?=^## 5\.)", re.MULTILINE | re.DOTALL)
+# Text the document writes *about* its own exclusion rules. It necessarily
+# names the excluded topics, so it is stripped before the gate runs.
+_META_BLOCK = re.compile(r"<!-- afsgap:meta -->.*?<!-- /afsgap:meta -->", re.DOTALL)
+
+
+def validate_document(
+    document: str,
+    result: RunResult,
+    tolerance: ToleranceFilter,
+    kpi: KpiFilter,
+    report: ValidationReport,
+) -> None:
+    body = _strip_meta(_strip_validation_log(document))
+
+    # 1. tolerance topics must be absent from the whole document
+    tolerance.assert_clean(body, "final_document", report)
+
+    # 2. the industry section must remain KPI-free
+    match = _INDUSTRY_SECTION.search(body)
+    if match:
+        hits = kpi.matches(match.group(1))
+        if hits:
+            report.error(
+                f"[kpi] the industry benchmark section contains measurement language "
+                f"{sorted(set(h.lower() for h in hits))[:8]}."
+            )
+
+    # 3. no transaction code may appear that verification did not clear
+    verified = {code.tcode.upper() for code in result.sap_research.verified_tcodes}
+    rejected = {code.tcode.upper() for code in result.sap_research.dropped_tcodes}
+    prose = _strip_evidence_tables(body)
+    for candidate in sorted(find_tcode_mentions(prose, also_search_for=rejected)):
+        if candidate in verified:
+            continue
+        if candidate in rejected:
+            report.error(
+                f"[tcode] rejected transaction code '{candidate}' leaked into the document body."
+            )
+        else:
+            report.warn(
+                f"[tcode] '{candidate}' is presented as a transaction code but was never verified "
+                "against a public SAP source."
+            )
+
+
+def _strip_meta(document: str) -> str:
+    return _META_BLOCK.sub(" ", document)
+
+
+def _strip_validation_log(document: str) -> str:
+    """The exclusion log quotes removed text on purpose - don't re-flag it."""
+    marker = "## 9. Exclusion and validation log"
+    index = document.find(marker)
+    return document[:index] if index != -1 else document
+
+
+def _strip_evidence_tables(document: str) -> str:
+    """Drop the rejected-T-code table so its own contents don't trip the check."""
+    out: list[str] = []
+    skipping = False
+    for line in document.splitlines():
+        if line.startswith("**Rejected transaction codes**"):
+            skipping = True
+            continue
+        if skipping:
+            if line.startswith("|") or not line.strip():
+                continue
+            skipping = False
+        out.append(line)
+    return "\n".join(out)

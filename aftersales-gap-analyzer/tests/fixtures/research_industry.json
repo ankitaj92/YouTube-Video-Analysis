@@ -1,0 +1,21 @@
+{
+  "text": "SYNTHETIC FIXTURE. Leading manufacturers push the returnability decision to the point of diagnosis in the dealership, so an invalid return never enters the network. Inspection findings are captured as structured defect codes rather than narrative, which makes the return stream usable as a quality signal. Several publishers report that claims settlement within 5 days is typical of leading players.",
+  "queries": [
+    "Defective Parts Return best practice automotive aftersales",
+    "automotive OEM spare parts reverse logistics leading practice",
+    "automotive dealer returns handling operating model",
+    "reverse logistics automotive industry practice study"
+  ],
+  "hits": [
+    {"url": "https://www.mckinsey.com/industries/automotive/our-insights/aftersales-returns", "title": "Aftersales returns", "query": "automotive OEM spare parts reverse logistics leading practice", "snippet": ""},
+    {"url": "https://www.apqc.org/resource-library/returns-process", "title": "Returns process framework", "query": "automotive dealer returns handling operating model", "snippet": ""},
+    {"url": "https://www.automotivelogistics.media/aftermarket/returns", "title": "Aftermarket returns", "query": "Defective Parts Return best practice automotive aftersales", "snippet": ""},
+    {"url": "https://somerandomblog.example.net/returns-tips", "title": "10 returns tips", "query": "returns best practice", "snippet": ""},
+    {"url": "https://www.reddit.com/r/logistics/comments/returns", "title": "Returns thread", "query": "returns best practice", "snippet": ""}
+  ],
+  "citations": [
+    {"url": "https://www.mckinsey.com/industries/automotive/our-insights/aftersales-returns", "title": "Aftersales returns", "cited_text": "Leaders decide returnability at the point of diagnosis, before the part leaves the dealership."},
+    {"url": "https://www.apqc.org/resource-library/returns-process", "title": "Returns process framework", "cited_text": "Structured disposition codes allow the return stream to be analysed as a quality signal."},
+    {"url": "https://somerandomblog.example.net/returns-tips", "title": "10 returns tips", "cited_text": "Always be nice to your dealers."}
+  ]
+}

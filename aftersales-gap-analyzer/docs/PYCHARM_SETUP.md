@@ -20,9 +20,10 @@
 cp .env.example .env
 ```
 
-Put your key in `.env`. `afsgap.config` loads it via `python-dotenv` at import,
-so no PyCharm environment-variable setup is needed. `.env` is gitignored - keep
-it that way.
+Put your Anthropic key and your Confluence settings in `.env` (see
+`docs/CONFLUENCE.md` for Cloud versus Data Center). `afsgap.config` loads it via
+`python-dotenv` at import, so no PyCharm environment-variable setup is needed.
+`.env` is gitignored - keep it that way, and use a read-only Confluence token.
 
 ## 3. Run configurations
 
@@ -32,12 +33,18 @@ them set **Working directory** to the project folder and check
 
 | Name | Module | Parameters |
 | --- | --- | --- |
-| Offline run | `afsgap` | `run data/processes/defective_parts_return.yaml --offline --no-cache` |
-| Live run | `afsgap` | `run data/processes/defective_parts_return.yaml -v` |
-| Live run (no industry) | `afsgap` | `run data/processes/defective_parts_return.yaml --skip-industry -v` |
+| Offline run (found) | `afsgap` | `run "Defective Parts Return" --offline --no-cache` |
+| Offline run (greenfield) | `afsgap` | `run "Battery Pack Return" --offline --no-cache` |
+| Confluence search | `afsgap` | `confluence-search "Defective Parts Return"` |
+| Live run | `afsgap` | `run "Defective Parts Return" -v` |
+| Live run (no industry) | `afsgap` | `run "Defective Parts Return" --skip-industry -v` |
 | Filter check | `afsgap` | `check-filters "the delivery tolerance is checked at receipt"` |
 
-Start with **Offline run**: it exercises the whole pipeline with no API cost.
+Start with the two **Offline runs**: together they exercise the whole pipeline in
+both modes, with no API cost and no Confluence connection.
+
+Note the quotes around the process name - without them PyCharm passes only the
+first word.
 
 ## 4. Tests
 
@@ -47,6 +54,14 @@ tests'**. The suite needs neither an API key nor network access.
 
 ## 5. Debugging the parts that usually need it
 
+* **It picked the wrong Confluence page, or none** - run `confluence-search`
+  first; it prints every candidate with its score and marks the one that would be
+  used. Fix by setting `AFSGAP_CONFLUENCE_SPACES`, passing `--page-id`, or
+  lowering `AFSGAP_CONFLUENCE_MIN_MATCH`. To re-read an edited page, delete its
+  file under `.cache/confluence/`.
+* **The transcribed AS-IS looks thin** - that is usually the page, not the
+  extraction: the prompt is a transcriber and may not add steps. Check the page
+  against "What makes a page work well" in `docs/CONFLUENCE.md`.
 * **A T-code you expected is missing** - breakpoint in
   `afsgap/research/tcode.py::TCodeVerifier.verify`; the `dropped` list carries
   the reason. The fetched page is in `.cache/pages/` if you want to read what the

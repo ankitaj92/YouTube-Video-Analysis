@@ -1,5 +1,7 @@
 """End-to-end run on fixtures: the guards must be observable in the output."""
 
+import re
+
 import pytest
 
 from afsgap.config import Settings
@@ -7,6 +9,21 @@ from afsgap.llm.offline import OfflineClient, seed_page_cache
 from afsgap.pipeline import Pipeline
 
 PROCESS = "data/processes/defective_parts_return.yaml"
+
+
+def strip_meta(document: str) -> str:
+    """Drop the blocks that describe the exclusion rules themselves."""
+    return re.sub(r"<!-- afsgap:meta -->.*?<!-- /afsgap:meta -->", " ", document, flags=re.DOTALL)
+
+
+def industry_section(document: str) -> str:
+    match = re.search(
+        r"^## \d+\. Industry practice benchmark(.*?)(?=^## \d+\.)",
+        strip_meta(document),
+        re.MULTILINE | re.DOTALL,
+    )
+    assert match, "industry section not found"
+    return match.group(1)
 
 
 @pytest.fixture
@@ -30,9 +47,9 @@ def test_run_completes_and_passes_validation(run):
 
 def test_tolerance_never_reaches_the_document(run):
     _, _, document = run
-    body = document.split("## 9. Exclusion")[0]
+    body = strip_meta(document).split("Exclusion and validation log")[0]
     for term in ["tolerance", "over-delivery", "overdelivery", "under-delivery"]:
-        assert term not in body.lower().replace("tolerance topics are excluded", ""), term
+        assert term not in body.lower(), term
 
 
 def test_tolerance_is_filtered_at_input_research_and_output(run):
@@ -61,7 +78,7 @@ def test_every_verified_tcode_cites_an_sap_domain(run):
 
 def test_industry_section_has_no_metrics(run):
     _, _, document = run
-    section = document.split("## 4. Industry practice benchmark")[1].split("## 5.")[0]
+    section = industry_section(document)
     for token in ["%", "within 5 days", "fill rate", "OTIF"]:
         assert token not in section, f"metric leaked into the industry section: {token}"
 
@@ -79,12 +96,14 @@ def test_reports_are_written(run):
     assert paths["markdown"].exists() and paths["json"].exists()
     for heading in [
         "## 1. Verdict",
-        "## 3. SAP standard reference",
-        "## 4. Industry practice benchmark",
-        "## 5. Gap analysis",
-        "## 6. TO-BE process design",
-        "## 8. Evidence register",
-        "## 9. Exclusion and validation log",
+        "## 2. Process source",
+        "## 3. Current (AS-IS) process",
+        "## 4. SAP standard reference",
+        "## 5. Industry practice benchmark",
+        "## 6. Gap analysis",
+        "## 7. TO-BE process design",
+        "## 9. Evidence register",
+        "## 10. Exclusion and validation log",
     ]:
         assert heading in document
 

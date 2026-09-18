@@ -1,0 +1,162 @@
+{
+  "process_name": "Battery Pack Return",
+  "summary": "SYNTHETIC FIXTURE. Implement the process on the documented SAP returns flow - a returns order created against the preceding document, an inbound receipt, a structured inspection whose outcome drives the follow-up activity, and a settlement leg - with the initiation gated in the dealer front-end.",
+  "why_new": "No process documentation was found for this process, so there is no AS-IS to improve; the design starts from SAP standard and leading practice.",
+  "design_principles": [
+    "Standard before extension: only extend where the SAP record and industry practice together show a need",
+    "Decide returnability before the part moves",
+    "Every disposition decision is structured data on the system of record"
+  ],
+  "recommended_flow": [
+    {
+      "seq": 1,
+      "name": "Gated return initiation",
+      "description": "The dealer initiates the return through a guided front-end that validates the part before authorising movement.",
+      "system": "Dealer front-end",
+      "actor": "Dealer",
+      "change_vs_current": "New capability"
+    },
+    {
+      "seq": 2,
+      "name": "Returns order",
+      "description": "An authorised request creates the returns order with reference to the preceding sales document.",
+      "system": "SAP S/4HANA",
+      "actor": "System",
+      "change_vs_current": "New capability"
+    },
+    {
+      "seq": 3,
+      "name": "Inbound receipt",
+      "description": "The returned product is received against an inbound delivery.",
+      "system": "SAP S/4HANA warehouse",
+      "actor": "Receiving operator",
+      "change_vs_current": "New capability"
+    },
+    {
+      "seq": 4,
+      "name": "Inspection and disposition",
+      "description": "The inspection result determines the follow-up activity and is recorded on the returns document.",
+      "system": "SAP S/4HANA",
+      "actor": "Inspector",
+      "change_vs_current": "New capability"
+    },
+    {
+      "seq": 5,
+      "name": "Settlement",
+      "description": "The disposition drives a credit or a coded rejection back to the dealer.",
+      "system": "SAP S/4HANA",
+      "actor": "System",
+      "change_vs_current": "New capability"
+    }
+  ],
+  "design_decisions": [
+    {
+      "decision": "Where is returnability decided?",
+      "options_considered": [
+        "At the dealer before shipment",
+        "Centrally after receipt",
+        "At inspection only"
+      ],
+      "recommendation": "Gate the decision at the dealer, before the part moves.",
+      "rationale": "Avoids moving parts that will be rejected and gives the dealer an immediate answer.",
+      "sap_basis": "The SAP record documents a returns order created with reference to the preceding sales document, which places the decision at order creation.",
+      "industry_basis": "Leading networks make the returnability judgement at the point of diagnosis in the workshop.",
+      "evidence": [
+        {
+          "quote": "Leaders decide returnability at the point of diagnosis, before the part leaves the dealership.",
+          "url": "https://www.mckinsey.com/industries/automotive/our-insights/aftersales-returns",
+          "source_title": "Aftersales returns"
+        }
+      ]
+    },
+    {
+      "decision": "How is the inspection outcome captured?",
+      "options_considered": [
+        "Structured disposition codes on the returns document",
+        "Free-text notes",
+        "A separate inspection system"
+      ],
+      "recommendation": "Structured disposition codes recorded against the returns document.",
+      "rationale": "Keeps the evidence on the system of record and makes the return stream analysable.",
+      "sap_basis": "The SAP record documents an inspection whose result determines the follow-up activity for the returned material.",
+      "industry_basis": "Inspection outcomes are captured against a controlled vocabulary rather than as narrative.",
+      "evidence": [
+        {
+          "quote": "The inspection result determines the follow-up activity for the returned material.",
+          "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/returns-inspection",
+          "source_title": "Inspection at Returns Receipt"
+        }
+      ]
+    },
+    {
+      "decision": "How does the dealer see status?",
+      "options_considered": [
+        "Extend the dealer front-end",
+        "Email notifications",
+        "No status visibility"
+      ],
+      "recommendation": "Expose returns document status to the dealer front-end.",
+      "rationale": "Status chasing is the most common source of avoidable contact in this process.",
+      "sap_basis": "",
+      "industry_basis": "Status is shared with the dealer continuously from initiation through to settlement.",
+      "evidence": []
+    }
+  ],
+  "configuration_scope": [
+    "Returns document types and the follow-up activities driven by the inspection outcome",
+    "Disposition code catalogue and its mapping to follow-up activities",
+    "Inbound delivery and receiving configuration for the returns flow"
+  ],
+  "master_data_prerequisites": [
+    "Material master coverage for the returnable part range",
+    "Business partner data for every dealer expected to initiate returns",
+    "Serial or batch identification where individual units must be traced"
+  ],
+  "roles_and_responsibilities": [
+    {
+      "role": "Dealer",
+      "responsibilities": [
+        "Initiate the return through the guided front-end",
+        "Pack and despatch the authorised part"
+      ]
+    },
+    {
+      "role": "Receiving operator",
+      "responsibilities": [
+        "Receive against the inbound delivery"
+      ]
+    },
+    {
+      "role": "Inspector",
+      "responsibilities": [
+        "Record the inspection outcome and disposition code"
+      ]
+    },
+    {
+      "role": "Aftersales finance",
+      "responsibilities": [
+        "Oversee settlement and handle disputes"
+      ]
+    }
+  ],
+  "integration_points": [
+    "Dealer front-end to the returns order",
+    "Inbound delivery to warehouse execution",
+    "Settlement to finance"
+  ],
+  "risks": [
+    "The disposition code catalogue is a cross-functional dependency on the critical path",
+    "Dealer adoption of a gated initiation needs training"
+  ],
+  "roadmap_phases": [
+    "Phase 1 - define the disposition code catalogue",
+    "Phase 2 - configure the standard returns flow with inspection",
+    "Phase 3 - connect the dealer front-end and open the process to the network"
+  ],
+  "open_questions": [
+    "Whether a standard SAP application covers the dealer-facing initiation was not established from the retrieved sources"
+  ],
+  "assumptions": [
+    "The returns flow documented in the retrieved SAP sources applies to this part category"
+  ]
+}

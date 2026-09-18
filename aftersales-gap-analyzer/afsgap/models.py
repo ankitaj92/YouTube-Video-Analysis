@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 Severity = Literal["critical", "high", "medium", "low"]
 Verdict = Literal["best_in_class", "at_par", "improvement_needed", "insufficient_evidence"]
+RunMode = Literal["gap", "greenfield"]
 SourceTier = Literal[
     "sap_official",
     "industry_credible",
@@ -244,6 +245,72 @@ class GapAnalysis(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Process provenance - where the AS-IS came from, or why there wasn't one
+# ---------------------------------------------------------------------------
+class PageCandidate(BaseModel):
+    title: str
+    url: str = ""
+    space_key: str = ""
+    score: float = 0.0
+    page_id: str = ""
+
+
+class ProcessProvenance(BaseModel):
+    """Auditable record of how the current process was (or was not) found."""
+
+    source: Literal["confluence", "yaml", "none"] = "yaml"
+    reference: str = ""            # human-readable citation
+    url: str = ""
+    page_id: str = ""
+    space_key: str = ""
+    version: int = 0
+    last_modified: str = ""
+    last_modified_by: str = ""
+    match_score: float = 0.0
+    searched_for: str = ""
+    spaces_searched: list[str] = Field(default_factory=list)
+    candidates: list[PageCandidate] = Field(default_factory=list)
+    not_found_reason: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Greenfield design - used when the process does not exist yet
+# ---------------------------------------------------------------------------
+class DesignDecision(BaseModel):
+    decision: str = Field(description="The design question being settled.")
+    options_considered: list[str] = Field(default_factory=list)
+    recommendation: str = ""
+    rationale: str = ""
+    sap_basis: str = Field(default="", description="What the SAP record supports. Empty if it does not.")
+    industry_basis: str = Field(default="", description="Qualitative leading practice. No metrics.")
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class RoleResponsibility(BaseModel):
+    role: str
+    responsibilities: list[str] = Field(default_factory=list)
+
+
+class ProcessBlueprint(BaseModel):
+    """An implementation proposal for a process that does not exist today."""
+
+    process_name: str
+    summary: str
+    why_new: str = Field(default="", description="Why this is being designed from scratch.")
+    design_principles: list[str] = Field(default_factory=list)
+    recommended_flow: list["ToBeStep"] = Field(default_factory=list)
+    design_decisions: list[DesignDecision] = Field(default_factory=list)
+    configuration_scope: list[str] = Field(default_factory=list)
+    master_data_prerequisites: list[str] = Field(default_factory=list)
+    roles_and_responsibilities: list[RoleResponsibility] = Field(default_factory=list)
+    integration_points: list[str] = Field(default_factory=list)
+    risks: list[str] = Field(default_factory=list)
+    roadmap_phases: list[str] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Validation + run record
 # ---------------------------------------------------------------------------
 class ExclusionRecord(BaseModel):
@@ -278,9 +345,12 @@ class RunResult(BaseModel):
     process_id: str
     process_name: str
     run_date: date
-    current_process: CurrentProcess
+    mode: RunMode = "gap"
+    provenance: ProcessProvenance = Field(default_factory=ProcessProvenance)
+    current_process: Optional[CurrentProcess] = None
     sap_research: SapResearchResult
     industry_research: IndustryResearchResult
-    gap_analysis: GapAnalysis
+    gap_analysis: Optional[GapAnalysis] = None
+    blueprint: Optional[ProcessBlueprint] = None
     validation: ValidationReport
     offline: bool = False

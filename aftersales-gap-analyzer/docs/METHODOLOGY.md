@@ -15,7 +15,8 @@ where these three disagree, and the recommendation is how to close it.
 | --- | --- | --- |
 | SAP process step, module, T-code | Official public SAP domains only | Consultancy blogs, forums, training sites, model recall |
 | Industry practice | Consultancies, standards and industry bodies, research institutes, recognised industry press, peer-reviewed work | Vendor marketing, forums, content farms, model recall |
-| Current process | The process owner's own description | Anything else |
+| Current process | The organisation's own Confluence page, transcribed without additions | Anything else, including what "should" be there |
+| "This process does not exist" | The published search record: terms, spaces, candidates and their scores | An unevidenced assertion |
 
 Every source used is listed in section 8; every source rejected by the
 credibility filter is listed in 8.3. A reviewer can re-open any of them.
@@ -51,7 +52,17 @@ from "we did not look".
 * **The verdict is a judgement, not a measurement.** It is grounded in the cited
   sources, and `insufficient_evidence` is an honest and available answer.
 * **AS-IS accuracy is your responsibility.** The gap analysis is only as good as
-  the process description fed in.
+  the Confluence page it transcribes. A page that is out of date produces an
+  analysis of a process nobody runs any more - which is why the page version and
+  last-modified date are printed in section 2.
+* **"Not found" means not found in the searched spaces.** A process documented
+  in a space the account cannot read, or under a title with no words in common
+  with the process name, will be treated as new. Section 2 shows exactly what was
+  searched so this is checkable in seconds.
+* **A greenfield blueprint is a proposal, not a validated design.** It is
+  anchored in SAP standard and leading practice, but it has not been through your
+  functional team, your data, or your dealer network. Its design decisions are
+  written to be argued with.
 * **The tool does not size a business case.** It produces effort bands (S/M/L/XL)
   and dispositions, not cost.
 

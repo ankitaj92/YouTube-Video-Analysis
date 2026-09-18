@@ -1,18 +1,30 @@
 # afsgap - Automotive Aftersales Process Gap Analyzer
 
-Analyses an automotive aftersales logistics process against **SAP standard** and
-**industry practice**, and produces a design document that says whether the
-process as run today is best in the market or can be improved - with every claim
-traceable to a source.
+You give it a **process name**. It reads that process from **Confluence**,
+researches **SAP standard** and **industry practice**, and produces a design
+document - with every claim traceable to a source.
+
+If the process does not exist in Confluence, it says so and switches to
+**greenfield mode**: instead of analysing gaps, it proposes how to implement the
+process from SAP standard plus leading practice.
 
 Built for the SAP ECC to SAP S/4HANA move: each gap carries an S/4HANA
 disposition (fit to standard, configure, extend, keep custom, retire).
 
 ```
-process YAML ─► pre-filter ─► SAP research ─► industry research ─► gap analysis ─► design doc
-                (tolerance)   (SAP domains    (broad search then    (3-way)        (+ final gate)
-                               only, T-code    allowlist filter
-                               verification)   + OpenAlex, KPI-free)
+                            ┌─ found ────► AS-IS ─┐
+process name ─► Confluence ─┤                     ├─► SAP research ─► industry research ─┐
+                            └─ not found ─────────┘   (SAP domains    (broad search then  │
+                                    │                  only, T-code    allowlist filter   │
+                                    │                  verification)   + OpenAlex)        │
+                                    │                                                    │
+                     ┌──────────────┴──────────────┐                                     │
+                     ▼                             ▼                                     │
+              gap analysis  ◄────────────────  greenfield blueprint  ◄───────────────────┘
+              (3-way, verdict)                (design decisions)
+                     └──────────────┬──────────────┘
+                                    ▼
+                        design document + final gate
 ```
 
 ## What this tool guarantees
@@ -24,43 +36,66 @@ process YAML ─► pre-filter ─► SAP research ─► industry research ─�
 | **Industry content is KPI-free** | Numeric and metric vocabulary is stripped pre- and post-generation; the rendered industry section is re-checked by the final gate |
 | **Industry research is broad, then filtered** | Ten differently-framed web queries plus five OpenAlex queries, searched unrestricted, then filtered against a credible-source allowlist. Rejected sources are published in the report |
 | **SAP facts come only from SAP** | Web search is domain-restricted to official SAP properties; SAP area names (SD, EWM, CMH, master data, dealer front-end/SOp, aftersales) are used **only** to build queries, never asserted |
+| **"This process is new" is evidenced, not assumed** | The provenance section publishes what was searched, in which spaces, every candidate page seen and its match score, and why each was rejected |
+| **Confluence pages are transcribed, not improved** | The extraction prompt is a transcriber: it may not add steps the page does not contain, so a thin page produces a thin AS-IS - which is itself a finding |
 
 ## Quick start
 
 ```bash
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env                                  # add your ANTHROPIC_API_KEY
+cp .env.example .env            # ANTHROPIC_API_KEY + the Confluence settings
 
-# try it with no API key and no network:
-python -m afsgap run data/processes/defective_parts_return.yaml --offline
+# try it with no API key, no Confluence and no network:
+python -m afsgap run "Defective Parts Return" --offline    # found    -> gap analysis
+python -m afsgap run "Battery Pack Return" --offline       # not found -> blueprint
 
 # the real thing:
-python -m afsgap run data/processes/defective_parts_return.yaml
+python -m afsgap run "Defective Parts Return"
 ```
 
 Output lands in `output/`:
 
-* `<process>_<date>_design_document.md` - the design document
-* `<process>_<date>_design_document.docx` - same, for circulation
+* `<process>_<date>_design_document.md` / `.docx` - the gap analysis document
+* `<process>_<date>_blueprint.md` / `.docx` - the greenfield document, when the
+  process was not found
 * `<process>_<date>_run.json` - the full machine-readable run record
 
 ## Commands
 
 ```bash
-python -m afsgap run <process.yaml> [--offline] [--no-cache] [--skip-industry] [-v]
-python -m afsgap list-processes
-python -m afsgap check-filters "the delivery tolerance is checked at receipt"
+python -m afsgap run "<process name>"      # read the process from Confluence
+python -m afsgap run <process.yaml>        # or from a local definition
+python -m afsgap confluence-search "<process name>"   # preview what would be matched
+
+# run options
+  --page-id 123456     use a specific Confluence page instead of searching
+  --space AFTS         restrict the search to a space (repeatable)
+  --new                skip the lookup and design the process from scratch
+  --require-existing   fail rather than fall back to greenfield design
+  --offline            use fixtures - no API key, no Confluence, no network
+  --no-cache           ignore cached research stages
+  --skip-industry      SAP research and analysis only
 ```
 
 `--no-cache` forces fresh research; without it, completed research stages are
 reused from `.cache/stages/` so you can iterate on analysis and reporting for free.
 
-## Adding a process
+## Where the process comes from
 
-Copy any file in `data/processes/` and edit it. The only required fields are
-`process_id`, `process_name` and `steps`; everything else improves the analysis.
-Write the AS-IS honestly, including pain points - they drive the gap severity.
+**Confluence (default).** Give a process name; the tool searches Confluence
+(title first, then full text, optionally within named spaces), scores candidates
+by title overlap, and reads the best match above the threshold. The page is
+transcribed into a structured AS-IS - it is never "improved" during transcription.
+See `docs/CONFLUENCE.md`.
+
+**A local YAML file.** Pass a path instead of a name. Useful when a process is
+not documented in Confluence but you have it written down, and for regression
+runs. Copy any file in `data/processes/` as a starting point.
+
+**Nothing (greenfield).** When no page matches, the run switches to blueprint
+mode and designs the process. Force it with `--new`; refuse it with
+`--require-existing`.
 
 ## Tuning without touching code
 
@@ -76,6 +111,7 @@ Use `python -m afsgap check-filters "<text>"` to see the effect of an edit immed
 ## Documentation
 
 * `docs/ARCHITECTURE.md` - how the pipeline and the guards fit together
+* `docs/CONFLUENCE.md` - connecting Confluence, matching, and what makes a good process page
 * `docs/PYCHARM_SETUP.md` - local setup, run configurations, debugging
 * `docs/WEEKEND_PLAN.md` - hour-by-hour plan to finish this weekend
 * `docs/METHODOLOGY.md` - how to defend the output in a design review

@@ -14,7 +14,12 @@ from .filters.tolerance import ToleranceFilter
 from .models import RunResult, ValidationReport
 from .research.tcode import find_tcode_mentions
 
-_INDUSTRY_SECTION = re.compile(r"^## 4\. Industry practice benchmark(.*?)(?=^## 5\.)", re.MULTILINE | re.DOTALL)
+# Section numbers differ between the gap and greenfield documents, so match on
+# the heading text rather than its number.
+_INDUSTRY_SECTION = re.compile(
+    r"^## \d+\. Industry practice benchmark(.*?)(?=^## \d+\.)", re.MULTILINE | re.DOTALL
+)
+_VALIDATION_LOG = re.compile(r"^## \d+\. Exclusion and validation log", re.MULTILINE)
 # Text the document writes *about* its own exclusion rules. It necessarily
 # names the excluded topics, so it is stripped before the gate runs.
 _META_BLOCK = re.compile(r"<!-- afsgap:meta -->.*?<!-- /afsgap:meta -->", re.DOTALL)
@@ -66,9 +71,8 @@ def _strip_meta(document: str) -> str:
 
 def _strip_validation_log(document: str) -> str:
     """The exclusion log quotes removed text on purpose - don't re-flag it."""
-    marker = "## 9. Exclusion and validation log"
-    index = document.find(marker)
-    return document[:index] if index != -1 else document
+    match = _VALIDATION_LOG.search(document)
+    return document[: match.start()] if match else document
 
 
 def _strip_evidence_tables(document: str) -> str:

@@ -1,0 +1,90 @@
+{
+  "process_id": "defective_parts_return",
+  "process_name": "Defective Parts Return",
+  "business_area": "Automotive aftersales logistics",
+  "description": "SYNTHETIC FIXTURE. Dealer returns a defective part to the regional distribution centre; the OEM inspects it and credits or rejects the return.",
+  "source_system": "SAP ECC",
+  "target_system": "SAP S/4HANA",
+  "systems_involved": [
+    "Dealer portal",
+    "SAP ECC",
+    "Warehouse management",
+    "Inspection spreadsheet"
+  ],
+  "roles": [
+    "Dealer parts manager",
+    "Claims clerk",
+    "DC operator",
+    "Technical inspector",
+    "Aftersales finance"
+  ],
+  "steps": [
+    {
+      "seq": 1,
+      "name": "Raise return request",
+      "actor": "Dealer parts manager",
+      "system": "Dealer portal",
+      "description": "Free-text defect description is captured.",
+      "pain_points": [
+        "Free-text description makes triage manual"
+      ]
+    },
+    {
+      "seq": 2,
+      "name": "Review and authorise",
+      "actor": "Claims clerk",
+      "system": "SAP ECC and email",
+      "description": "Request is reviewed and re-keyed into ECC.",
+      "pain_points": [
+        "Double keying between the portal and ECC"
+      ]
+    },
+    {
+      "seq": 3,
+      "name": "Ship the part",
+      "actor": "Dealer parts manager",
+      "system": "Carrier portal",
+      "description": "Part is packed and collected.",
+      "pain_points": [
+        "No shipment visibility in SAP"
+      ]
+    },
+    {
+      "seq": 4,
+      "name": "Goods receipt",
+      "actor": "DC operator",
+      "system": "Warehouse management",
+      "description": "Receipt is posted against the return authorisation.",
+      "pain_points": []
+    },
+    {
+      "seq": 5,
+      "name": "Technical inspection",
+      "actor": "Technical inspector",
+      "system": "Inspection spreadsheet",
+      "description": "Outcome and disposition are recorded outside SAP.",
+      "pain_points": [
+        "Inspection evidence is not auditable"
+      ]
+    },
+    {
+      "seq": 6,
+      "name": "Credit or rejection",
+      "actor": "Aftersales finance",
+      "system": "SAP ECC",
+      "description": "Credit memo is raised after weekly reconciliation.",
+      "pain_points": [
+        "Weekly reconciliation delays credit"
+      ]
+    }
+  ],
+  "known_pain_points": [
+    "Double keying between the portal and ECC",
+    "Inspection evidence is not auditable",
+    "Dealers cannot see status between shipping and credit"
+  ],
+  "custom_objects": [
+    "ZRET_AUTH custom return authorisation table",
+    "ZRET_REPORT reconciliation report"
+  ]
+}

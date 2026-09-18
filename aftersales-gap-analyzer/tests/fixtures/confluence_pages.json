@@ -1,0 +1,26 @@
+[
+  {
+    "page_id": "123456",
+    "title": "Defective Parts Return Process",
+    "space_key": "AFTS",
+    "url": "https://fixture.atlassian.net/wiki/spaces/AFTS/pages/123456",
+    "version": 7,
+    "last_modified": "2025-11-14T09:22:00.000Z",
+    "last_modified_by": "A. Process Owner",
+    "text": "### Purpose\n\nDealer returns a defective part to the regional distribution centre.\n\n| Step | Actor | System | Notes |\n| Raise return request | Dealer parts manager | Dealer portal | Free-text defect description |\n| Review and authorise | Claims clerk | SAP ECC and email | Re-keyed manually into ECC |\n| Ship the part | Dealer parts manager | Carrier portal | No visibility in SAP |\n| Goods receipt | DC operator | Warehouse management | Delivery tolerance checked before posting |\n| Technical inspection | Technical inspector | Inspection spreadsheet | Outcome recorded outside SAP |\n| Credit or rejection | Aftersales finance | SAP ECC | Weekly reconciliation |\n\n#### Known issues\n\n- Double keying between the portal and ECC\n- Inspection evidence is not auditable\n- Dealers cannot see status between shipping and credit\n\n#### Custom objects\n\n- ZRET_AUTH custom return authorisation table\n- ZRET_REPORT reconciliation report",
+    "score": 0.0,
+    "excerpt": "Dealer returns a defective part to the regional distribution centre."
+  },
+  {
+    "page_id": "123999",
+    "title": "Dealer Warranty Claim Processing",
+    "space_key": "AFTS",
+    "url": "https://fixture.atlassian.net/wiki/spaces/AFTS/pages/123999",
+    "version": 3,
+    "last_modified": "2025-06-02T11:00:00.000Z",
+    "last_modified_by": "A. Process Owner",
+    "text": "### Purpose\n\nWarranty claim submitted by the dealer and settled by the OEM.",
+    "score": 0.0,
+    "excerpt": "Warranty claim submitted by the dealer."
+  }
+]

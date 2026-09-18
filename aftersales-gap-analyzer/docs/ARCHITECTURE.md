@@ -4,14 +4,53 @@
 
 | # | Stage | Module | Input | Output |
 | --- | --- | --- | --- | --- |
-| 1 | Load & pre-filter AS-IS | `analysis/current_process.py` | process YAML | `CurrentProcess` |
+| 1 | Resolve the process | `sources/resolver.py` | process name or YAML path | `CurrentProcess` + provenance, **or** a greenfield decision |
 | 2 | SAP standard research | `research/sap.py` | `CurrentProcess` | `SapResearchResult` |
 | 3 | Industry benchmark research | `research/industry.py` | `CurrentProcess` | `IndustryResearchResult` |
-| 4 | Gap analysis | `analysis/gap.py` | all three | `GapAnalysis` |
+| 4a | Gap analysis (AS-IS exists) | `analysis/gap.py` | all three | `GapAnalysis` |
+| 4b | Greenfield design (no AS-IS) | `analysis/blueprint.py` | SAP + industry | `ProcessBlueprint` |
 | 5 | Render + final gate | `report/`, `validation.py` | `RunResult` | Markdown, DOCX, JSON |
 
 Stages 2 and 3 are cached under `.cache/stages/`, so iterating on stages 4-5
 costs nothing.
+
+## The two modes
+
+Stage 1 decides which document the run produces:
+
+```
+process name ──► Confluence search (title, then full text, optionally by space)
+                      │
+                      ├─ best match >= threshold ──► transcribe page ──► GAP MODE
+                      │                                                  (verdict on the current process)
+                      └─ nothing credible ─────────────────────────────► GREENFIELD MODE
+                                                                         (blueprint: how to implement it)
+```
+
+Both modes run the same SAP and industry research and share the same evidence,
+exclusion and validation machinery - only the analysis stage and the middle of
+the document differ. The greenfield branch is a *finding*, not an error path:
+the provenance record carries what was searched, which spaces, every candidate
+and its score, and why each was rejected, so the claim "this process is new" can
+be challenged from the document alone.
+
+`--require-existing` turns the fallback into a hard failure, for batch runs where
+silently designing a process would be the wrong outcome.
+
+## Reading Confluence
+
+`sources/confluence.py` targets the v1 content API, which both Cloud and Data
+Center serve, with Basic (Cloud email + token) or Bearer (DC PAT) auth. Page
+bodies arrive as storage-format XHTML and go through `sources/storage_format.py`,
+a standard-library parser that keeps the structure carrying the meaning -
+headings, lists and above all **table rows**, since process pages document their
+steps in tables. Layout macros (TOC, page trees) are dropped.
+
+Transcription into `CurrentProcess` is an LLM extraction call with a transcriber
+contract: it may not add steps the page does not contain. A thin page therefore
+produces a thin AS-IS, which the run reports as a warning rather than papering
+over. Page text is tolerance-filtered *before* it reaches that prompt, and the
+extracted result is filtered again after.
 
 ## Why research and extraction are two separate calls
 

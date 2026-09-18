@@ -19,13 +19,14 @@ from typing import Any, Type, TypeVar
 
 from pydantic import BaseModel
 
-from .analysis.current_process import load_current_process
+from .analysis.blueprint import BlueprintDesigner
 from .analysis.gap import GapAnalyzer
 from .config import Settings
 from .filters.kpi import KpiFilter
 from .filters.sources import SourceClassifier
 from .filters.tolerance import ToleranceFilter
 from .models import (
+    CurrentProcess,
     IndustryResearchResult,
     RunResult,
     SapResearchResult,
@@ -34,6 +35,7 @@ from .models import (
 from .report.design_doc import render_markdown, write_reports
 from .research.industry import IndustryResearcher
 from .research.sap import SapResearcher
+from .sources.resolver import ProcessResolver, ResolvedProcess
 from .validation import validate_document
 
 logger = logging.getLogger(__name__)
@@ -59,52 +61,94 @@ class Pipeline:
         self.classifier = SourceClassifier()
 
     # ------------------------------------------------------------------
-    def run(self, process_path: str | Path, skip_industry: bool = False) -> tuple[RunResult, dict[str, Path]]:
+    def run(
+        self,
+        target: str | Path,
+        skip_industry: bool = False,
+        *,
+        page_id: str | None = None,
+        spaces: list[str] | None = None,
+        force_new: bool = False,
+        require_existing: bool = False,
+        confluence=None,
+    ) -> tuple[RunResult, dict[str, Path]]:
+        """Run the pipeline for a process name or a local process YAML path.
+
+        A process name is looked up in Confluence. When nothing credible is found
+        the run switches to greenfield mode and designs the process instead of
+        analysing it.
+        """
         report = ValidationReport()
 
-        logger.info("Stage 1/5: loading and pre-filtering the current process")
-        process = load_current_process(process_path, self.tolerance, report)
+        logger.info("Stage 1/5: resolving the process and pre-filtering its description")
+        resolver = ProcessResolver(self.settings, self.client, self.tolerance, confluence)
+        resolved: ResolvedProcess = resolver.resolve(
+            str(target), report, page_id=page_id, spaces=spaces,
+            force_new=force_new, require_existing=require_existing,
+        )
+        if resolved.mode == "greenfield":
+            logger.info("  no existing process found - switching to greenfield design mode")
+
+        # Research is driven by the process name, so it runs in both modes. In
+        # greenfield mode there is no AS-IS to enrich the queries with, which is
+        # exactly why the SAP area hints matter more there.
+        process_for_research = resolved.process or CurrentProcess(
+            process_id=resolved.process_id, process_name=resolved.process_name
+        )
 
         logger.info("Stage 2/5: SAP standard research (official SAP domains only)")
         sap = self._cached(
-            f"{process.process_id}.sap",
+            f"{resolved.process_id}.sap",
             SapResearchResult,
-            lambda: SapResearcher(self.client, self.settings, self.classifier, self.tolerance).run(process, report),
+            lambda: SapResearcher(self.client, self.settings, self.classifier, self.tolerance).run(
+                process_for_research, report
+            ),
             report,
         )
 
         logger.info("Stage 3/5: industry benchmark research (broad search + allowlist + OpenAlex)")
         if skip_industry:
-            industry = IndustryResearchResult(
-                benchmark=self._empty_benchmark(process.process_name),
-            )
+            industry = IndustryResearchResult(benchmark=self._empty_benchmark(resolved.process_name))
             report.warn("[industry] stage skipped by request; the benchmark column is empty.")
         else:
             industry = self._cached(
-                f"{process.process_id}.industry",
+                f"{resolved.process_id}.industry",
                 IndustryResearchResult,
                 lambda: IndustryResearcher(
                     self.client, self.settings, self.classifier, self.tolerance, self.kpi
-                ).run(process, report),
+                ).run(process_for_research, report),
                 report,
             )
 
-        logger.info("Stage 4/5: three-way gap analysis")
-        analysis = GapAnalyzer(self.client, self.tolerance, self.kpi).run(process, sap, industry, report)
+        analysis = None
+        blueprint = None
+        if resolved.mode == "greenfield":
+            logger.info("Stage 4/5: greenfield design (SAP standard + industry practice)")
+            blueprint = BlueprintDesigner(self.client, self.tolerance, self.kpi).run(
+                resolved.process_name, resolved.provenance, sap, industry, report
+            )
+        else:
+            logger.info("Stage 4/5: three-way gap analysis")
+            analysis = GapAnalyzer(self.client, self.tolerance, self.kpi).run(
+                resolved.process, sap, industry, report
+            )
 
         result = RunResult(
-            process_id=process.process_id,
-            process_name=process.process_name,
+            process_id=resolved.process_id,
+            process_name=resolved.process_name,
             run_date=date.today(),
-            current_process=process,
+            mode=resolved.mode,
+            provenance=resolved.provenance,
+            current_process=resolved.process,
             sap_research=sap,
             industry_research=industry,
             gap_analysis=analysis,
+            blueprint=blueprint,
             validation=report,
             offline=self.offline,
         )
 
-        logger.info("Stage 5/5: rendering the design document and running the final gate")
+        logger.info("Stage 5/5: rendering the document and running the final gate")
         document = render_markdown(result)
         validate_document(document, result, self.tolerance, self.kpi, report)
         result.validation = report

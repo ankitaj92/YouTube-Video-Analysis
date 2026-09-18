@@ -64,6 +64,21 @@ class Settings:
     sap_max_searches: int = field(default_factory=lambda: _env_int("AFSGAP_SAP_MAX_SEARCHES", 12))
     industry_max_searches: int = field(default_factory=lambda: _env_int("AFSGAP_INDUSTRY_MAX_SEARCHES", 14))
 
+    # --- Confluence (process source) ---------------------------------------
+    confluence_base_url: str = field(default_factory=lambda: os.getenv("AFSGAP_CONFLUENCE_BASE_URL", ""))
+    confluence_email: str = field(default_factory=lambda: os.getenv("AFSGAP_CONFLUENCE_EMAIL", ""))
+    confluence_api_token: str = field(default_factory=lambda: os.getenv("AFSGAP_CONFLUENCE_API_TOKEN", ""))
+    # basic (Cloud: email + API token) | bearer (Data Center PAT) | auto
+    confluence_auth: str = field(default_factory=lambda: os.getenv("AFSGAP_CONFLUENCE_AUTH", "auto"))
+    confluence_spaces: list[str] = field(
+        default_factory=lambda: [s.strip() for s in os.getenv("AFSGAP_CONFLUENCE_SPACES", "").split(",") if s.strip()]
+    )
+    confluence_search_limit: int = field(default_factory=lambda: _env_int("AFSGAP_CONFLUENCE_SEARCH_LIMIT", 10))
+    # Title-similarity below which a hit is not accepted as "this process exists".
+    confluence_min_match_score: float = field(
+        default_factory=lambda: float(os.getenv("AFSGAP_CONFLUENCE_MIN_MATCH", "0.45"))
+    )
+
     # --- research ----------------------------------------------------------
     openalex_mailto: str = field(default_factory=lambda: os.getenv("AFSGAP_OPENALEX_MAILTO", ""))
     openalex_per_page: int = field(default_factory=lambda: _env_int("AFSGAP_OPENALEX_PER_PAGE", 10))

@@ -17,57 +17,16 @@ back from an allowlisted domain.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Sequence, Type, TypeVar
 
 from pydantic import BaseModel
 
 from ..config import Settings
+from ..research.transcript import Citation, ResearchTranscript, SearchHit
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
-
-
-@dataclass
-class SearchHit:
-    url: str
-    title: str = ""
-    query: str = ""
-    snippet: str = ""
-
-
-@dataclass
-class Citation:
-    url: str
-    title: str = ""
-    cited_text: str = ""
-
-
-@dataclass
-class ResearchTranscript:
-    """Everything a research call produced."""
-
-    text: str = ""
-    hits: list[SearchHit] = field(default_factory=list)
-    citations: list[Citation] = field(default_factory=list)
-    queries: list[str] = field(default_factory=list)
-    stop_reason: str = ""
-
-    def evidence_block(self, limit: int = 120) -> str:
-        """Render retrieved material as prompt text for the extraction call."""
-        lines = ["## Retrieved sources", ""]
-        for hit in self.hits[:limit]:
-            lines.append(f"- URL: {hit.url}")
-            if hit.title:
-                lines.append(f"  TITLE: {hit.title}")
-            if hit.snippet:
-                lines.append(f"  SNIPPET: {hit.snippet}")
-        lines += ["", "## Verbatim citations", ""]
-        for citation in self.citations[:limit]:
-            lines.append(f'- "{citation.cited_text}" -- {citation.url}')
-        lines += ["", "## Research narrative", "", self.text]
-        return "\n".join(lines)
 
 
 class LlmUnavailableError(RuntimeError):
@@ -95,10 +54,14 @@ class ClaudeClient:
         *,
         system: str,
         prompt: str,
+        queries: Sequence[str] | None = None,
         allowed_domains: Sequence[str] | None = None,
         blocked_domains: Sequence[str] | None = None,
         max_searches: int = 10,
     ) -> ResearchTranscript:
+        # `queries` are already embedded in the prompt for this backend - Claude
+        # runs its own searches through the server-side tool. The local backend
+        # uses them directly, which is why they are part of the interface.
         tool: dict[str, Any] = {
             "type": self.settings.web_search_tool_type,
             "name": "web_search",

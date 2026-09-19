@@ -24,6 +24,7 @@ from ..models import (
 )
 from ..prompts import SAP_EXTRACT_SYSTEM, SAP_RESEARCH_SYSTEM
 from ..resources_loader import load_resource
+from .quotes import verify_evidence
 from .tcode import TCodeVerifier
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,7 @@ class SapResearcher:
         transcript = self.client.research(
             system=SAP_RESEARCH_SYSTEM,
             prompt=prompt,
+            queries=queries,
             allowed_domains=self.classifier.sap_official,
             max_searches=self.settings.sap_max_searches,
         )
@@ -150,10 +152,12 @@ class SapResearcher:
             schema=SapStandardProcess,
         )
 
-        # Post-LLM validation: tolerance content never survives generation.
-        standard = SapStandardProcess.model_validate(
-            self.tolerance.validate_output(standard.model_dump(), "sap_research.output", report)
-        )
+        # Post-LLM validation: tolerance content never survives generation, and
+        # a quote only counts as evidence if the page it cites contains it.
+        payload = self.tolerance.validate_output(standard.model_dump(), "sap_research.output", report)
+        if self.settings.verify_quotes:
+            payload = verify_evidence(payload, transcript.pages, "sap_research.evidence", report)
+        standard = SapStandardProcess.model_validate(payload)
 
         verified, dropped = self.verifier.verify(standard.tcodes)
         for item in dropped:

@@ -37,7 +37,26 @@ process name ─► Confluence ─┤                     ├─► SAP research
 | **Industry research is broad, then filtered** | Ten differently-framed web queries plus five OpenAlex queries, searched unrestricted, then filtered against a credible-source allowlist. Rejected sources are published in the report |
 | **SAP facts come only from SAP** | Web search is domain-restricted to official SAP properties; SAP area names (SD, EWM, CMH, master data, dealer front-end/SOp, aftersales) are used **only** to build queries, never asserted |
 | **"This process is new" is evidenced, not assumed** | The provenance section publishes what was searched, in which spaces, every candidate page seen and its match score, and why each was rejected |
+| **Evidence quotes are checked against the page** | A quote that is not literally present in the source it cites is dropped and logged (`unverified_quote`); the claim survives, the false citation does not |
 | **Confluence pages are transcribed, not improved** | The extraction prompt is a transcriber: it may not add steps the page does not contain, so a thin page produces a thin AS-IS - which is itself a finding |
+
+## Two ways to run it
+
+| | Hosted | Local |
+| --- | --- | --- |
+| Generation | Claude API (`claude-opus-5`) | Ollama on your machine |
+| Search | Claude's server-side web search | DuckDuckGo |
+| Your process content | sent to the API | **never leaves the laptop** |
+| Quality | best | usable for testing; see `docs/LOCAL_MODE.md` |
+
+```bash
+python -m afsgap run "Defective Parts Return"                # hosted
+python -m afsgap run "Defective Parts Return" --llm ollama   # fully local
+python -m afsgap doctor --llm ollama                         # check the local setup
+```
+
+Both paths share everything else: the same prompts, exclusions, T-code
+verification and document.
 
 ## Quick start
 
@@ -112,6 +131,7 @@ Use `python -m afsgap check-filters "<text>"` to see the effect of an edit immed
 
 * `docs/ARCHITECTURE.md` - how the pipeline and the guards fit together
 * `docs/CONFLUENCE.md` - connecting Confluence, matching, and what makes a good process page
+* `docs/LOCAL_MODE.md` - running entirely on your own machine with Ollama and DuckDuckGo
 * `docs/PYCHARM_SETUP.md` - local setup, run configurations, debugging
 * `docs/WEEKEND_PLAN.md` - hour-by-hour plan to finish this weekend
 * `docs/METHODOLOGY.md` - how to defend the output in a design review

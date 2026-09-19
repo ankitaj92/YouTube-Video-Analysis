@@ -318,7 +318,7 @@ class ExclusionRecord(BaseModel):
     location: str
     excluded_text: str
     matched_terms: list[str] = Field(default_factory=list)
-    rule: Literal["tolerance", "kpi", "denied_source", "ungrounded_tcode"] = "tolerance"
+    rule: Literal["tolerance", "kpi", "denied_source", "ungrounded_tcode", "unverified_quote"] = "tolerance"
 
 
 class ValidationReport(BaseModel):

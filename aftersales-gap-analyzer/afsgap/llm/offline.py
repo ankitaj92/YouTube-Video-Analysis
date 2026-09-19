@@ -13,7 +13,7 @@ from typing import Sequence, Type, TypeVar
 
 from pydantic import BaseModel
 
-from .client import Citation, ResearchTranscript, SearchHit
+from ..research.transcript import Citation, ResearchTranscript, SearchHit
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -40,6 +40,7 @@ class OfflineClient:
         *,
         system: str,
         prompt: str,
+        queries: Sequence[str] | None = None,
         allowed_domains: Sequence[str] | None = None,
         blocked_domains: Sequence[str] | None = None,
         max_searches: int = 10,

@@ -40,6 +40,35 @@ def _env_int(name: str, default: int) -> int:
 class Settings:
     """Single source of truth for models, limits and paths."""
 
+    # --- backends ----------------------------------------------------------
+    # claude = hosted Anthropic API (server-side web search)
+    # ollama = fully local: Ollama for generation, a search backend for retrieval
+    llm_backend: str = field(default_factory=lambda: os.getenv("AFSGAP_LLM", "claude"))
+    search_backend: str = field(default_factory=lambda: os.getenv("AFSGAP_SEARCH", "duckduckgo"))
+
+    # --- local (Ollama) ----------------------------------------------------
+    ollama_host: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_HOST", "http://localhost:11434"))
+    ollama_model: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_MODEL", "qwen2.5:14b"))
+    ollama_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_TIMEOUT", 900))
+    ollama_num_ctx: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_NUM_CTX", 16384))
+    ollama_max_attempts: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_MAX_ATTEMPTS", 3))
+    ollama_temperature: float = field(default_factory=lambda: float(os.getenv("AFSGAP_OLLAMA_TEMPERATURE", "0")))
+
+    # How much retrieved material a local run feeds the model. Local context
+    # windows are small; these caps keep a stage inside them.
+    local_max_pages: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_MAX_PAGES", 8))
+    local_page_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PAGE_CHARS", 4000))
+    local_prompt_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PROMPT_CHARS", 40000))
+
+    # --- search ------------------------------------------------------------
+    search_results_per_query: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_RESULTS", 8))
+    search_pause_seconds: float = field(default_factory=lambda: float(os.getenv("AFSGAP_SEARCH_PAUSE", "1.5")))
+
+    # Drop an evidence quote that is not literally present in the page it cites.
+    # Cheap insurance against a small local model paraphrasing a source into
+    # something it never said.
+    verify_quotes: bool = field(default_factory=lambda: _env_bool("AFSGAP_VERIFY_QUOTES", True))
+
     # --- model -------------------------------------------------------------
     model: str = field(default_factory=lambda: os.getenv("AFSGAP_MODEL", "claude-opus-5"))
     effort: str = field(default_factory=lambda: os.getenv("AFSGAP_EFFORT", "high"))
@@ -80,6 +109,7 @@ class Settings:
     )
 
     # --- research ----------------------------------------------------------
+    openalex_enabled: bool = field(default_factory=lambda: _env_bool("AFSGAP_OPENALEX_ENABLED", True))
     openalex_mailto: str = field(default_factory=lambda: os.getenv("AFSGAP_OPENALEX_MAILTO", ""))
     openalex_per_page: int = field(default_factory=lambda: _env_int("AFSGAP_OPENALEX_PER_PAGE", 10))
     openalex_from_year: int = field(default_factory=lambda: _env_int("AFSGAP_OPENALEX_FROM_YEAR", 2015))

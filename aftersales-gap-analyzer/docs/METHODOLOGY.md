@@ -59,6 +59,11 @@ from "we did not look".
   in a space the account cannot read, or under a title with no words in common
   with the process name, will be treated as new. Section 2 shows exactly what was
   searched so this is checkable in seconds.
+* **If the run used a local model, say so.** The sourcing guarantees are
+  identical, but synthesis quality is not. The run record carries the backend,
+  and the exclusion log shows how often the model had to be corrected - a long
+  list of post-generation warnings is a signal to re-run hosted before the
+  document goes to a steering committee.
 * **A greenfield blueprint is a proposal, not a validated design.** It is
   anchored in SAP standard and leading practice, but it has not been through your
   functional team, your data, or your dealer network. Its design decisions are

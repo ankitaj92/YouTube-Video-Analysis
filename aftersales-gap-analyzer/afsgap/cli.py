@@ -1,6 +1,8 @@
 """Command line entry point.
 
     python -m afsgap run "Defective Parts Return"              # reads Confluence
+    python -m afsgap run "Defective Parts Return" --llm ollama # fully local
+    python -m afsgap doctor                                    # check the local setup
     python -m afsgap run data/processes/defective_parts_return.yaml
     python -m afsgap run "Battery Pack Return" --new           # design it from scratch
     python -m afsgap confluence-search "Defective Parts Return"
@@ -38,6 +40,10 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="skip the Confluence lookup and design the process from scratch")
     run.add_argument("--require-existing", action="store_true",
                      help="fail instead of falling back to greenfield design when nothing is found")
+    run.add_argument("--llm", choices=["claude", "ollama"], default=None,
+                     help="generation backend (default: AFSGAP_LLM, else claude)")
+    run.add_argument("--search", choices=["duckduckgo", "none"], default=None,
+                     help="search backend for local runs (default: AFSGAP_SEARCH, else duckduckgo)")
     run.add_argument("--offline", action="store_true", help="use fixtures instead of live research")
     run.add_argument("--fixtures", default=DEFAULT_FIXTURES, help="fixture directory for --offline")
     run.add_argument("--no-cache", action="store_true", help="ignore cached research stages")
@@ -48,6 +54,10 @@ def _build_parser() -> argparse.ArgumentParser:
     search.add_argument("--space", action="append", dest="spaces", metavar="KEY")
     search.add_argument("--offline", action="store_true", help="search the fixture pages")
     search.add_argument("--fixtures", default=DEFAULT_FIXTURES)
+
+    doctor = sub.add_parser("doctor", help="check that the configured backends are reachable")
+    doctor.add_argument("--llm", choices=["claude", "ollama"], default=None)
+    doctor.add_argument("--search", choices=["duckduckgo", "none"], default=None)
 
     sub.add_parser("list-processes", help="list the local process definitions in data/processes")
 
@@ -62,6 +72,74 @@ def _confluence_client(args, settings):
 
         return OfflineConfluenceClient(Path(args.fixtures))
     return None  # the resolver constructs the live client lazily
+
+
+
+def _build_llm(settings, llm: str | None, search: str | None):
+    """Construct the generation backend, wiring retrieval for the local one."""
+    backend = (llm or settings.llm_backend or "claude").lower()
+    if backend == "ollama":
+        from .llm.ollama import OllamaClient
+        from .search.base import build_backend
+
+        client = OllamaClient(settings, build_backend(settings, search))
+        client.check()          # fail fast with a useful message, not mid-run
+        return client
+    from .llm import ClaudeClient
+
+    return ClaudeClient(settings)
+
+
+def _doctor(settings, llm: str | None, search: str | None) -> int:
+    """Check every moving part of a local setup before a real run."""
+    ok = True
+    backend = (llm or settings.llm_backend or "claude").lower()
+    print(f"Generation backend : {backend}")
+
+    if backend == "ollama":
+        from .llm.ollama import OllamaClient, OllamaUnavailableError
+        from .search.base import build_backend
+
+        client = OllamaClient(settings, build_backend(settings, search))
+        print(f"  host             : {client.host}")
+        print(f"  model            : {client.model}")
+        try:
+            client.check()
+            print("  status           : OK")
+        except OllamaUnavailableError as exc:
+            ok = False
+            print(f"  status           : FAILED - {exc}")
+    else:
+        import os
+
+        has_key = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN"))
+        print(f"  ANTHROPIC_API_KEY: {'set' if has_key else 'NOT SET'}")
+        ok = ok and has_key
+
+    search_name = (search or settings.search_backend or "duckduckgo").lower()
+    print(f"Search backend     : {search_name}")
+    if backend == "ollama" and search_name != "none":
+        from .search.base import build_backend
+
+        try:
+            results = build_backend(settings, search_name).search("SAP returns process", max_results=3)
+            if results:
+                print(f"  status           : OK ({len(results)} result(s), e.g. {results[0].url[:70]})")
+            else:
+                ok = False
+                print("  status           : NO RESULTS - the engine may be rate-limiting or blocked")
+        except Exception as exc:
+            ok = False
+            print(f"  status           : FAILED - {exc}")
+
+    print("Confluence         : " + (settings.confluence_base_url or "not configured (runs will be greenfield)"))
+    if settings.confluence_base_url:
+        print(f"  auth             : {settings.confluence_auth}"
+              f"{' + email' if settings.confluence_email else ''}"
+              f"{' + token' if settings.confluence_api_token else ' (NO TOKEN)'}")
+    print()
+    print("Result             : " + ("ready" if ok else "not ready - fix the FAILED lines above"))
+    return 0 if ok else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,6 +164,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = load_settings()
+
+    if args.command == "doctor":
+        return _doctor(settings, args.llm, args.search)
 
     if args.command == "confluence-search":
         from .sources.confluence import ConfluenceClient, ConfluenceUnavailableError
@@ -114,9 +195,7 @@ def main(argv: list[str] | None = None) -> int:
         client = OfflineClient(Path(args.fixtures))
         seed_page_cache(Path(args.fixtures), settings.cache_dir)
     else:
-        from .llm import ClaudeClient
-
-        client = ClaudeClient(settings)
+        client = _build_llm(settings, args.llm, args.search)
 
     pipeline = Pipeline(settings, client, offline=args.offline, use_cache=not args.no_cache)
     try:

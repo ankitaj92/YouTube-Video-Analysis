@@ -37,6 +37,30 @@ be challenged from the document alone.
 `--require-existing` turns the fallback into a hard failure, for batch runs where
 silently designing a process would be the wrong outcome.
 
+## Backends
+
+Generation and retrieval are both pluggable, and the pipeline does not know
+which is in use:
+
+| | `afsgap/llm/client.py` (Claude) | `afsgap/llm/ollama.py` (local) | `afsgap/llm/offline.py` (fixtures) |
+| --- | --- | --- | --- |
+| `research()` | server-side web search, 1 model call | search backend + page fetch, **no model call** | canned transcript |
+| `extract()` | `messages.parse` with a Pydantic schema | Ollama `format` = flattened JSON schema, with retries | canned JSON |
+
+All three return the same `ResearchTranscript` (`afsgap/research/transcript.py`),
+so filtering, verification, analysis and rendering are backend-agnostic.
+
+The local path also populates `transcript.pages` - the retrieved page text -
+which is what `research/quotes.py` checks evidence quotes against. A smaller
+model is likelier to paraphrase a source into a quotation, so an unsupported
+quote is dropped and logged rather than published.
+
+Search backends live in `afsgap/search/`. `DuckDuckGoBackend` prefers the `ddgs`
+package and falls back to DuckDuckGo's HTML endpoint; domain restriction is
+applied twice, as `site:` operators to steer the engine and as a hard filter on
+the results, because `site:` is a hint and an SAP fact from a non-SAP domain is
+not an SAP fact.
+
 ## Reading Confluence
 
 `sources/confluence.py` targets the v1 content API, which both Cloud and Data

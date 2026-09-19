@@ -39,6 +39,8 @@ them set **Working directory** to the project folder and check
 | Live run | `afsgap` | `run "Defective Parts Return" -v` |
 | Live run (no industry) | `afsgap` | `run "Defective Parts Return" --skip-industry -v` |
 | Filter check | `afsgap` | `check-filters "the delivery tolerance is checked at receipt"` |
+| Doctor (local) | `afsgap` | `doctor --llm ollama` |
+| Local run | `afsgap` | `run "Defective Parts Return" --llm ollama -v` |
 
 Start with the two **Offline runs**: together they exercise the whole pipeline in
 both modes, with no API cost and no Confluence connection.
@@ -75,7 +77,16 @@ tests'**. The suite needs neither an API key nor network access.
 * **Re-running costs money** - stages are cached. Delete a single file under
   `.cache/stages/` to redo just that stage.
 
-## 6. Cost control while developing
+## 6. Running against a local model
+
+If you want no data leaving the laptop, install Ollama, pull a model, and use the
+**Doctor (local)** and **Local run** configurations above. Full setup, model
+choice and expectations: `docs/LOCAL_MODE.md`.
+
+Local runs are slow - minutes per stage on a 14B model - so keep `--no-cache`
+off, and let the stage cache carry you between attempts.
+
+## 7. Cost control while developing
 
 Iterate offline, then do one live run per process. Live cost is dominated by the
 two research calls; `--skip-industry` halves it while you are still tuning SAP

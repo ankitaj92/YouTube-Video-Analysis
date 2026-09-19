@@ -5,6 +5,11 @@ PyYAML>=6.0             # process definitions and the editable filter resources
 requests>=2.31          # OpenAlex + page fetch for T-code verification
 python-dotenv>=1.0      # local .env for the API key
 
+# Local mode (Ollama + DuckDuckGo). Both are optional:
+#   - ollama itself is a separate install (https://ollama.com), not a pip package
+#   - ddgs gives a maintained DuckDuckGo client; without it the HTML endpoint is used
+ddgs>=9.0
+
 # Reporting (optional but installed by default - DOCX export)
 python-docx>=1.1
 

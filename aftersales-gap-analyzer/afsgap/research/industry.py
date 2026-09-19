@@ -34,6 +34,7 @@ from ..models import (
 )
 from ..prompts import INDUSTRY_EXTRACT_SYSTEM, INDUSTRY_RESEARCH_SYSTEM
 from .openalex import search_works
+from .quotes import verify_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ class IndustryResearcher:
         transcript = self.client.research(
             system=INDUSTRY_RESEARCH_SYSTEM,
             prompt=prompt,
+            queries=web_queries,
             max_searches=self.settings.industry_max_searches,
         )
 
@@ -133,6 +135,8 @@ class IndustryResearcher:
         # 3. post-LLM validation: both exclusions re-applied to generated content
         payload = self.tolerance.validate_output(benchmark.model_dump(), "industry_research.output", report)
         payload = self.kpi.validate_output(payload, "industry_research.output", report)
+        if self.settings.verify_quotes:
+            payload = verify_evidence(payload, transcript.pages, "industry_research.evidence", report)
         benchmark = IndustryBenchmark.model_validate(payload)
         if not benchmark.scholarly_works:
             benchmark.scholarly_works = scholarly[:6]
@@ -150,6 +154,9 @@ class IndustryResearcher:
         seen: set[str] = set()
         if getattr(self.client, "offline", False):
             works = list(self.client.scholarly_works())
+            queries = []
+        elif not self.settings.openalex_enabled:
+            report.warn("[industry] OpenAlex is disabled; the scholarly leg was skipped.")
             queries = []
         for query in queries:
             for work in search_works(

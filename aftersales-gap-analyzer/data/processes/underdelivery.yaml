@@ -1,0 +1,93 @@
+# TEMPLATE - correct this against your real process before trusting any output.
+#
+# This is a plausible skeleton of a short-shipment process, written so the eval
+# case has something to run against. The steps, systems and custom objects are
+# placeholders; the pain points drive most of the eval's expectations, so those
+# in particular should be replaced with the ones your process owner recognises.
+
+process_id: underdelivery
+process_name: Underdelivery
+business_area: Automotive aftersales logistics
+owner: Aftersales Supply Chain
+source_system: SAP ECC
+target_system: SAP S/4HANA
+description: >
+  A dealer or distribution centre receives fewer parts than the order and delivery note
+  state. The shortage is recorded, investigated against pick and pack evidence, and
+  resolved by a replacement shipment or a credit. Today the investigation happens by
+  email and the evidence lives in the warehouse system rather than with the order.
+
+scope_in:
+  - Recording a short shipment on receipt
+  - Investigating the shortage against pick, pack and despatch evidence
+  - Resolution by replacement shipment or credit
+scope_out:
+  - Carrier loss and damage claims
+  - Supplier recovery
+
+systems_involved:
+  - Dealer portal
+  - SAP ECC
+  - Warehouse management
+  - Email
+
+roles:
+  - Dealer parts manager
+  - Distribution centre supervisor
+  - Aftersales claims clerk
+  - Aftersales finance
+
+steps:
+  - name: Shortage reported on receipt
+    actor: Dealer parts manager
+    system: Dealer portal
+    description: >
+      The receiving dealer records that fewer pieces arrived than the delivery note states,
+      with a free-text note and optional photographs of the packaging.
+    outputs: [Shortage report]
+    pain_points:
+      - Free-text notes make shortages hard to categorise or analyse
+      - Reports arrive days after receipt, by which time packaging evidence is gone
+
+  - name: Investigation against despatch evidence
+    actor: Distribution centre supervisor
+    system: Warehouse management + email
+    description: >
+      The despatching site checks pick confirmations, packing lists and weights, and replies
+      by email with a finding.
+    pain_points:
+      - Evidence lives in the warehouse system and is not linked to the order
+      - No service commitment on investigation, so dealers chase by phone
+
+  - name: Resolution decision
+    actor: Aftersales claims clerk
+    system: SAP ECC + email
+    description: >
+      The clerk decides between a replacement shipment, a credit, or rejecting the claim,
+      and records the outcome manually.
+    outputs: [Replacement order or credit memo]
+    pain_points:
+      - Decisions are inconsistent between clerks and markets
+      - Rejection reasons are free text, which drives repeat disputes
+
+  - name: Settlement
+    actor: Aftersales finance
+    system: SAP ECC
+    description: Credit or replacement is executed and the case is closed.
+    pain_points:
+      - No reporting connects shortages back to a site, route or part
+
+known_pain_points:
+  - Shortage evidence is not linked to the order that it concerns
+  - Investigation has no service commitment and is driven by email
+  - Resolution decisions are inconsistent and their reasons are unstructured
+  - No feedback loop from shortages to the sites and routes that cause them
+
+custom_objects:
+  - ZSHORT_LOG - custom shortage log table
+  - ZSHORT_RPT - custom report reconciling shortages against credits
+
+notes: >
+  Replace this file with the real process description. The eval derives its expectations
+  from the pain points and custom objects above, so their accuracy determines whether the
+  eval is measuring anything real.

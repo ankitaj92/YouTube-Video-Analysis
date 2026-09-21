@@ -1,0 +1,19 @@
+id: guard_greenfield_offline
+description: Offline. Nothing matches in the fixture Confluence, so the run must switch to greenfield
+  and publish the search record that justifies the switch.
+target: Battery Pack Return
+mode: greenfield
+offline: true
+tags:
+- guard
+- offline
+rubric:
+- id: explains_why_new
+  family: insight
+  must: true
+  description: Explains why the process is being designed from scratch
+  keywords:
+  - 'no'
+  - found
+  - new
+  - documentation

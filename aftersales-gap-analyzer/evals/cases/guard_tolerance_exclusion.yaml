@@ -1,0 +1,13 @@
+id: guard_tolerance_exclusion
+description: Offline. The fixtures deliberately contain tolerance statements in the research and in the
+  model output; none may reach the document.
+target: data/processes/defective_parts_return.yaml
+mode: gap
+offline: true
+tags:
+- guard
+- offline
+forbidden:
+- delivery tolerance
+- tolerance key
+- tolerance check

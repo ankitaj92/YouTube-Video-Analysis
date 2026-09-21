@@ -1,0 +1,20 @@
+id: greenfield_ev_battery_logistics
+description: Second greenfield case on an emerging topic, where public SAP material is thinner. Tests
+  whether thin research produces honest gaps rather than padding.
+target: EV Battery Return Logistics
+mode: greenfield
+force_new: true
+tags:
+- greenfield
+- thin-evidence
+- live
+rubric:
+- id: honest_about_thin_evidence
+  family: grounding
+  must: true
+  description: Acknowledges where evidence was thin instead of asserting confidently
+  keywords:
+  - not established
+  - open question
+  - assumption
+  - confirm

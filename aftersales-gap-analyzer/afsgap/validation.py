@@ -32,7 +32,7 @@ def validate_document(
     kpi: KpiFilter,
     report: ValidationReport,
 ) -> None:
-    body = _strip_meta(_strip_validation_log(document))
+    body = document_body(document)
 
     # 1. tolerance topics must be absent from the whole document
     tolerance.assert_clean(body, "final_document", report)
@@ -50,8 +50,7 @@ def validate_document(
     # 3. no transaction code may appear that verification did not clear
     verified = {code.tcode.upper() for code in result.sap_research.verified_tcodes}
     rejected = {code.tcode.upper() for code in result.sap_research.dropped_tcodes}
-    prose = _strip_evidence_tables(body)
-    for candidate in sorted(find_tcode_mentions(prose, also_search_for=rejected)):
+    for candidate in sorted(find_tcode_mentions(body, also_search_for=rejected)):
         if candidate in verified:
             continue
         if candidate in rejected:
@@ -63,6 +62,20 @@ def validate_document(
                 f"[tcode] '{candidate}' is presented as a transaction code but was never verified "
                 "against a public SAP source."
             )
+
+
+def document_body(document: str) -> str:
+    """The part of a document that makes claims.
+
+    Excludes three things that legitimately quote what was excluded or
+    rejected: the meta blocks describing the exclusion rules, the exclusion and
+    validation log, and the rejected-transaction-code table. Publishing what was
+    rejected is the point of those sections; scanning them as if they were
+    findings would flag the tool's own transparency.
+
+    Shared with the eval harness so the two cannot drift apart.
+    """
+    return _strip_evidence_tables(_strip_meta(_strip_validation_log(document)))
 
 
 def _strip_meta(document: str) -> str:

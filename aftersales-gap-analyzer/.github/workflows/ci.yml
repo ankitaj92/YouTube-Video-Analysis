@@ -1,0 +1,29 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aftersales-gap-analyzer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: pip install -e ".[dev,docx]"
+
+      - name: Unit tests
+        run: python -m pytest
+
+      # The offline eval subset needs no model, no network and no API key, and
+      # exits non-zero on a blocking failure - so a change that breaks the
+      # exclusion rules or the grounding guarantees fails the build.
+      - name: Eval (offline subset)
+        run: python -m afsgap.evals run --offline --no-cache --tags offline

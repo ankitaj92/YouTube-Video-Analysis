@@ -27,6 +27,7 @@ all = ["anthropic>=1.0.0", "ddgs>=9.0", "python-docx>=1.1", "pytest>=8.0"]
 
 [project.scripts]
 afsgap = "afsgap.cli:main"
+afsgap-evals = "afsgap.evals.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["afsgap*"]

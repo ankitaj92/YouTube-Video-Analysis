@@ -40,12 +40,13 @@ dependency, not an anomaly. For anything long-lived, use a search API with terms
 (Brave Search API, Bing, SerpAPI) or the `seeds` backend, where you control the
 inputs.
 
-**No output quality evaluation.** Everything tested is mechanical: that a rule
-fired, that a quote matched, that a document rendered. Nothing measures whether
-the gap analysis is *good*. There is no eval set, no rubric, no regression
-tracking of analysis quality across model or prompt changes. For a tool whose
-output drives design decisions, that is a real gap - and it is the thing most
-worth building next if this becomes important.
+**Output quality evaluation exists now, and is young.** `docs/EVALS.md`
+describes a ten-case eval set scoring compliance, grounding and insight
+separately, with most expectations derived from your own process definitions.
+It is a real regression net, but it is ten cases graded mostly by keyword
+matching - enough to catch a change that breaks things, not enough to certify
+that an analysis is excellent. Growing the set and using the model judge on a
+baseline is the next increment.
 
 **Single user, single process.** No concurrency, no queue, no locking on the
 cache directory. Two runs against the same process at once will race on
@@ -76,9 +77,10 @@ Treat the first live run of each of those as the real test.
 
 In order of value:
 
-1. **An eval set.** Ten processes with known-good answers, scored on each
-   change. Without this, "did that prompt edit help?" is unanswerable.
-2. **CI** running the test suite on every push.
+1. **CI** running the test suite and the offline eval subset on every push
+   (the eval exits 2 on a blocking failure, so it drops straight in).
+2. **Grow the eval set** beyond ten cases and run the model judge against a
+   labelled baseline.
 3. **A search API with terms of service**, replacing the scraped backends.
 4. **Integration tests** against a Confluence sandbox and a small local model.
 5. **Packaging and pinning** - `pyproject.toml` exists; pin exact versions in a

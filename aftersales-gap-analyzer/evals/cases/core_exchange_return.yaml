@@ -1,0 +1,20 @@
+id: core_exchange_return
+description: 'Third gap-mode case: core/deposit obligations, a different economic model again.'
+target: data/processes/core_exchange_return.yaml
+mode: gap
+tags:
+- gap
+- core
+- live
+expected_sap_concepts:
+- core
+- return
+rubric:
+- id: grading_evidence
+  family: insight
+  must: true
+  description: Addresses the lack of systematic grading evidence behind disputes
+  keywords:
+  - grading
+  - evidence
+  - dispute

@@ -1,0 +1,26 @@
+id: underdelivery
+description: A process whose name overlaps the tolerance exclusion vocabulary. It must be analysed normally,
+  while tolerance configuration stays excluded.
+target: data/processes/underdelivery.yaml
+mode: gap
+tags:
+- gap
+- exclusion
+- live
+expected_sap_concepts:
+- delivery
+- quantity
+forbidden:
+- delivery tolerance
+- tolerance key
+- tolerance limit
+rubric:
+- id: analyses_the_event
+  family: insight
+  must: true
+  description: Analyses the short-shipment business event rather than refusing the process
+  keywords:
+  - shortage
+  - discrepancy
+  - quantity
+  - delivery

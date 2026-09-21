@@ -1,0 +1,12 @@
+id: guard_kpi_free_industry
+description: Offline. The industry fixture contains a settlement time and a fill rate; the industry section
+  must end up free of both.
+target: data/processes/defective_parts_return.yaml
+mode: gap
+offline: true
+tags:
+- guard
+- offline
+forbidden:
+- within 5 days
+- fill rate

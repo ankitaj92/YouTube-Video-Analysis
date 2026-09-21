@@ -136,15 +136,20 @@ Use `python -m afsgap check-filters "<text>"` to see the effect of an edit immed
 * `docs/CONFLUENCE.md` - connecting Confluence, matching, and what makes a good process page
 * `docs/LOCAL_MODE.md` - running entirely on your own machine with Ollama and DuckDuckGo
 * `docs/CORPORATE_NETWORK.md` - TLS interception, proxies, and `CERTIFICATE_VERIFY_FAILED`
+* `docs/EVALS.md` - the eval set: how output quality is measured and how to extend it
 * `docs/PRODUCTION_READINESS.md` - what is solid, what is missing, what is unverified
 * `docs/PYCHARM_SETUP.md` - local setup, run configurations, debugging
 * `docs/WEEKEND_PLAN.md` - hour-by-hour plan to finish this weekend
 * `docs/METHODOLOGY.md` - how to defend the output in a design review
 
-## Tests
+## Tests and evals
 
 ```bash
-python -m pytest
+python -m pytest                                    # 257 tests, fully offline
+python -m afsgap.evals run --offline --tags offline # does the output hold up?
 ```
 
-The suite runs fully offline: no API key, no network.
+The tests check mechanics; the eval set checks whether the analysis is any good.
+Most of its expectations derive from your own process definitions - every
+documented pain point must be addressed, every custom object dispositioned. See
+`docs/EVALS.md`.

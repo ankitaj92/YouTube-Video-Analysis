@@ -1,0 +1,11 @@
+id: guard_tcode_grounding
+description: Offline. Four transaction codes are proposed, two unverifiable. Only the verified ones may
+  be published or cited.
+target: data/processes/defective_parts_return.yaml
+mode: gap
+offline: true
+tags:
+- guard
+- offline
+forbidden:
+- ZRET9

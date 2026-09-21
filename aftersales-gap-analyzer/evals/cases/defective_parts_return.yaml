@@ -1,0 +1,44 @@
+id: defective_parts_return
+description: Flagship gap-mode case. Rich AS-IS with pain points and custom objects, so most expectations
+  derive from the process definition itself.
+target: data/processes/defective_parts_return.yaml
+mode: gap
+tags:
+- gap
+- core
+- live
+expected_sap_concepts:
+- return
+- delivery
+- inspection
+- credit
+forbidden:
+- delivery tolerance
+- tolerance key
+rubric:
+- id: verdict_reasoned
+  family: insight
+  must: true
+  description: States a verdict and gives a reason that refers to specific findings, not a general impression
+  keywords:
+  - verdict
+  - because
+  - gap
+- id: inspection_moved_in
+  family: insight
+  must: true
+  description: Recommends bringing the spreadsheet-based inspection into the system of record
+  keywords:
+  - inspection
+  - system
+  - record
+  - structured
+- id: s4_disposition_present
+  family: insight
+  must: true
+  description: Each gap carries an S/4HANA disposition (fit, configure, extend, keep, retire)
+  keywords:
+  - standard
+  - configure
+  - extend
+  - retire

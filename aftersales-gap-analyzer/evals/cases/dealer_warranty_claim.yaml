@@ -1,0 +1,30 @@
+id: dealer_warranty_claim
+description: Second gap-mode case, different process family (claims rather than returns). Guards against
+  expectations that only work for returns.
+target: data/processes/dealer_warranty_claim.yaml
+mode: gap
+tags:
+- gap
+- core
+- live
+expected_sap_concepts:
+- claim
+- warranty
+rubric:
+- id: entitlement_automation
+  family: insight
+  must: true
+  description: Addresses the manual entitlement validation and its backlog
+  keywords:
+  - entitlement
+  - validation
+  - manual
+  - automat
+- id: settlement_timing
+  family: insight
+  must: false
+  description: Addresses batch settlement and its effect on the dealer relationship
+  keywords:
+  - settlement
+  - batch
+  - dealer

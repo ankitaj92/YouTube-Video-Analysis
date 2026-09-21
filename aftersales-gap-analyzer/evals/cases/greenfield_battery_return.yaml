@@ -1,0 +1,37 @@
+id: greenfield_battery_return
+description: 'Greenfield mode: no documentation exists, so the tool must propose a design anchored in
+  SAP standard rather than analyse gaps.'
+target: Battery Pack Return
+mode: greenfield
+force_new: true
+tags:
+- greenfield
+- core
+- live
+rubric:
+- id: decisions_have_alternatives
+  family: insight
+  must: true
+  description: Design decisions state the options considered, not just the conclusion
+  keywords:
+  - option
+  - considered
+  - alternative
+  - instead
+- id: admits_sap_silence
+  family: grounding
+  must: true
+  description: Where the SAP record is silent, says so rather than inventing capability
+  keywords:
+  - not established
+  - open question
+  - confirm
+  - unknown
+- id: prerequisites_named
+  family: insight
+  must: true
+  description: Names configuration scope and master data prerequisites concretely
+  keywords:
+  - master data
+  - configuration
+  - prerequisite

@@ -80,11 +80,7 @@ class Pipeline:
         """
         report = ValidationReport()
 
-        # Check this before touching Confluence, search or the model: a process
-        # whose own name is an excluded topic can only produce an empty
-        # document, and finding that out after twenty minutes helps nobody.
-        self.tolerance.check_process_name(Path(str(target)).stem if str(target).endswith((".yaml", ".yml"))
-                                          else str(target))
+        self._vet_process_name(str(target), report)
 
         logger.info("Stage 1/5: resolving the process and pre-filtering its description")
         resolver = ProcessResolver(self.settings, self.client, self.tolerance, confluence)
@@ -161,6 +157,45 @@ class Pipeline:
 
         paths = write_reports(result, self.settings.output_dir)
         return result, paths
+
+    # ------------------------------------------------------------------
+    def _vet_process_name(self, target: str, report: ValidationReport) -> None:
+        """Handle a process name that overlaps the exclusion vocabulary.
+
+        The name is allowed through - it is what the user called the process,
+        and the document has to be able to say it. What the exclusion still
+        removes is tolerance *content*: a sentence about under-delivery
+        tolerances goes, a sentence about an under-delivery being raised stays.
+        """
+        name = Path(target).stem if target.endswith((".yaml", ".yml")) else target
+        overlap = self.tolerance.check_process_name(name)
+
+        if overlap and self.settings.refuse_excluded_process:
+            from .filters.tolerance import ExcludedProcessError
+
+            raise ExcludedProcessError(
+                f"'{name}' overlaps the exclusion list (matched: {', '.join(overlap)}) and "
+                "AFSGAP_REFUSE_EXCLUDED_PROCESS is on.\n\n"
+                "Turn it off to analyse the process anyway - tolerance content is still "
+                "excluded from the research and the document either way."
+            )
+
+        # Register the name unconditionally: the document has to be able to say
+        # what process it is about, and surrounding prose (including this tool's
+        # own wording, such as "above the match threshold") can otherwise supply
+        # the context that makes a contextual rule fire on the title.
+        self.tolerance.allow_process_name(name)
+        if not overlap:
+            return
+
+        report.warn(
+            f"[scope] the process name '{name}' overlaps the tolerance exclusion vocabulary "
+            f"({', '.join(overlap)}). The process itself is being analysed; what is excluded is "
+            "tolerance configuration - limits, keys, groups and allowances. If findings look "
+            "thin, check the exclusion log and consider whether "
+            "afsgap/resources/tolerance_terms.yaml is too broad for this process."
+        )
+        logger.info("Process name '%s' overlaps the exclusion vocabulary - analysing it anyway.", name)
 
     # ------------------------------------------------------------------
     def _cached(self, key: str, schema: Type[T], produce, report: ValidationReport) -> T:

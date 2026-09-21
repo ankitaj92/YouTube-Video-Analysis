@@ -2,15 +2,16 @@
 
 import pytest
 
+# Tolerance *configuration* - always excluded.
 EXCLUDED = [
     "The delivery tolerance is checked before the goods receipt is posted.",
     "Set the tolerance key for the invoice check.",
     "Over-delivery is permitted for this item.",
-    "Underdelivery of the returned quantity is handled manually.",
-    "An over receipt must be approved by the supervisor.",
     "Die Toleranz wird im Wareneingang geprueft.",
     "Unlimited over delivery is switched on for spare parts.",
     "A quantity tolerance applies to the returned line.",
+    "The under-delivery tolerance is maintained per plant.",
+    "An over-receipt is allowed up to the configured limit.",
 ]
 
 KEPT = [
@@ -18,6 +19,17 @@ KEPT = [
     "The inspector records a structured disposition code.",
     "A credit memo settles the confirmed return.",
     "Goods receipt is posted against the returns delivery.",
+]
+
+# The business events themselves are analysable processes, not tolerance
+# configuration. Excluding these made it impossible to study a process the
+# organisation actually runs, such as "Underdelivery".
+KEPT_BUSINESS_EVENTS = [
+    "Underdelivery of the returned quantity is handled manually.",
+    "The dealer reports an underdelivery and raises a discrepancy.",
+    "An over receipt must be approved by the supervisor.",
+    "Under-delivery is recorded against the inbound delivery and investigated.",
+    "The warehouse confirms an over-delivery to the claims team.",
 ]
 
 
@@ -31,6 +43,23 @@ def test_excluded_text_is_detected(tolerance, text):
 def test_legitimate_text_survives(tolerance, text):
     assert tolerance.is_clean(text)
     assert tolerance.scrub(text).text == text
+
+
+@pytest.mark.parametrize("text", KEPT_BUSINESS_EVENTS)
+def test_business_events_are_not_tolerance_configuration(tolerance, text):
+    """'Underdelivery' is a process; an under-delivery tolerance is a setting."""
+    assert tolerance.is_clean(text), f"wrongly excluded a business event: {text}"
+
+
+def test_context_does_not_leak_between_sentences(tolerance):
+    """A 'limit' in one sentence must not make another sentence tolerance talk."""
+    text = (
+        "The dealer reports an underdelivery on the parts order. "
+        "The roadmap limits phase one to the core flow."
+    )
+    result = tolerance.scrub(text)
+    assert "underdelivery" in result.text.lower()
+    assert not result.removed
 
 
 def test_only_the_offending_sentence_is_removed(tolerance):

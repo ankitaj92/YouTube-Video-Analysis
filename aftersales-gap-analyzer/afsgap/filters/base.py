@@ -22,8 +22,16 @@ class ScrubResult:
 class PatternFilter:
     """Detects and removes segments matching any configured pattern.
 
-    ``allowances`` are patterns that explain away a match: if the only reason a
-    segment matched is an allowance phrase, the segment is kept.
+    Three kinds of rule:
+
+    * ``patterns`` - always exclude the segment.
+    * ``contextual`` - ``(pattern, [context, ...])``: exclude only when the
+      pattern *and* one of its context patterns appear in the same segment.
+      This is what separates a topic from a word: "under-delivery tolerance" is
+      the excluded configuration, while "the dealer reports an under-delivery"
+      is a business event the analysis needs.
+    * ``allowances`` - patterns that explain away a match; if an allowance
+      phrase is the only reason a segment matched, the segment is kept.
     """
 
     rule_name = "pattern"
@@ -32,9 +40,11 @@ class PatternFilter:
         self,
         patterns: Iterable[re.Pattern[str]],
         allowances: Iterable[re.Pattern[str]] = (),
+        contextual: Iterable[tuple[re.Pattern[str], list[re.Pattern[str]]]] = (),
     ) -> None:
         self.patterns = list(patterns)
         self.allowances = list(allowances)
+        self.contextual = [(pattern, list(context)) for pattern, context in contextual]
 
     # -- detection ---------------------------------------------------------
     def matches(self, text: str) -> list[str]:
@@ -44,10 +54,16 @@ class PatternFilter:
         hits: list[str] = []
         for pattern in self.patterns:
             for found in pattern.finditer(text):
-                token = found.group(0)
                 if self._is_allowed(text, found.start(), found.end()):
                     continue
-                hits.append(token)
+                hits.append(found.group(0))
+
+        for pattern, context in self.contextual:
+            found = pattern.search(text)
+            if not found or self._is_allowed(text, found.start(), found.end()):
+                continue
+            if any(rule.search(text) for rule in context):
+                hits.append(found.group(0))
         return hits
 
     def is_clean(self, text: str) -> bool:

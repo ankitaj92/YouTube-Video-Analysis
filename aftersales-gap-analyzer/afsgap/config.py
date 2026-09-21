@@ -156,6 +156,14 @@ class Settings:
     fail_on_validation_error: bool = field(
         default_factory=lambda: _env_bool("AFSGAP_FAIL_ON_VALIDATION_ERROR", True)
     )
+    # Refuse outright when the requested process name overlaps the exclusion
+    # list. Off by default: users search for whatever their landscape calls the
+    # process, and the name is an identifier rather than a claim. Turn it on for
+    # a programme that wants such requests stopped at the door.
+    refuse_excluded_process: bool = field(
+        default_factory=lambda: _env_bool("AFSGAP_REFUSE_EXCLUDED_PROCESS", False)
+    )
+
     # A T-code is only reported when a public SAP page literally contains it.
     require_literal_tcode_evidence: bool = field(
         default_factory=lambda: _env_bool("AFSGAP_REQUIRE_LITERAL_TCODE_EVIDENCE", True)

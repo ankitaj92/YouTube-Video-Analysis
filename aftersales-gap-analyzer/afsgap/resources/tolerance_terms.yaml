@@ -1,39 +1,60 @@
 # Terms that mark a segment as "tolerance-related".
 #
-# Any input segment, research snippet, LLM output segment or report segment that
-# matches one of these patterns is EXCLUDED from the whole pipeline:
-#   - pre-LLM  : stripped from the current-process input and from search snippets
-#   - in-prompt: the exclusion is restated as a hard rule in every prompt
-#   - post-LLM : model output is re-scanned and offending segments are dropped
-#   - final    : the rendered design document is scanned one last time
+# WHAT THIS EXCLUDES - AND WHAT IT DOES NOT
 #
+# The programme excludes TOLERANCES: the configuration that decides how much
+# deviation is accepted before a document is blocked - tolerance keys, groups,
+# limits and profiles, and the over/under-delivery allowances built on them.
+#
+# It does NOT exclude the business events themselves. "Underdelivery" and
+# "Over-delivery" are real aftersales processes: a dealer receives fewer parts
+# than ordered and raises a discrepancy. That process is analysable. Only the
+# tolerance machinery around it is out of scope.
+#
+# So over/under-delivery terms are CONTEXTUAL: excluded only when the same
+# sentence is talking about tolerance, limits or allowances. A sentence that
+# merely describes the event survives.
+#
+# Enforcement points: pre-LLM on input and on retrieved snippets, an explicit
+# rule in every prompt, post-LLM re-scanning, and a final gate on the document.
 # Patterns are case-insensitive Python regular expressions.
-# Edit this file to tune the exclusion - no code change required.
 
+# --- always excluded ------------------------------------------------------
 patterns:
-  # --- direct tolerance vocabulary -----------------------------------------
   - '\btolerance[sd]?\b'
   - '\btoleranz\b'                      # German SAP documentation
   - '\btoleranzgrenze\w*\b'
   - '\btol\.?\s*limit[s]?\b'
-
-  # --- over / under delivery and receipt -----------------------------------
-  - '\bover[-\s]?deliver(?:y|ies|ed|ing)?\b'
-  - '\bunder[-\s]?deliver(?:y|ies|ed|ing)?\b'
-  - '\bover[-\s]?/?\s*under[-\s]?deliver\w*\b'
-  - '\bover[-\s]?receipt[s]?\b'
-  - '\bunder[-\s]?receipt[s]?\b'
-  - '\bover[-\s]?issue[s]?\b'
-  - '\bunlimited\s+over[-\s]?deliver\w*\b'
-
-  # --- configuration objects that only exist to express a tolerance --------
-  - '\btolerance\s+(?:key|group|limit|profile|check|band|range|category)\b'
-  - '\b(?:quantity|qty|price|value|weight|date)\s+tolerance\b'
   - '\bo/?u\s*tolerance\b'
-  - '\bduplicate\s+invoice\s+tolerance\b'
 
-# Terms that look tolerance-ish but are legitimate aftersales vocabulary.
-# A segment is only excluded if it matches a pattern above AND none of these
-# allowances explain the match on their own.
+# --- excluded only when the segment is about tolerance --------------------
+# Each entry is excluded when its `pattern` matches AND at least one of
+# `requires` also appears in the same segment.
+contextual:
+  - pattern: '\bover[-\s]?deliver(?:y|ies|ed|ing)?\b'
+    requires: &tolerance_context
+      - '\btoleran\w*\b'
+      - '\blimit(?:s|ed)?\b'
+      - '\ballowance[s]?\b'
+      - '\bthreshold[s]?\b'
+      - '\bpermit\w*\b'
+      - '\ballow\w*\b'
+      - '\bacceptab\w+\s+(?:variance|deviation|range)\b'
+      - '\bunlimited\b'
+      - '\bpercentage\s+(?:over|under)\b'
+  - pattern: '\bunder[-\s]?deliver(?:y|ies|ed|ing)?\b'
+    requires: *tolerance_context
+  - pattern: '\bover[-\s]?receipt[s]?\b'
+    requires: *tolerance_context
+  - pattern: '\bunder[-\s]?receipt[s]?\b'
+    requires: *tolerance_context
+  - pattern: '\bover[-\s]?issue[s]?\b'
+    requires: *tolerance_context
+  - pattern: '\b(?:quantity|qty|price|value|weight|date)\s+(?:variance|deviation)\b'
+    requires: *tolerance_context
+
+# Terms that look tolerance-ish but are legitimate vocabulary. A segment is
+# only excluded if it matches a pattern above AND none of these explain the
+# match on their own.
 allowances:
   - '\bzero[-\s]tolerance\s+(?:safety|policy)\b'   # HR/safety phrasing, not SAP tolerance

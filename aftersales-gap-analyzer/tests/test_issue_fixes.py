@@ -55,32 +55,61 @@ def test_404_names_the_likely_cause(monkeypatch):
         client._get("/rest/api/content/search", {})
 
 
-# -- a process that is itself excluded --------------------------------------
-@pytest.mark.parametrize("name", ["Underdelivery", "Under-delivery", "Over Delivery", "Tolerance Handling"])
-def test_excluded_process_names_are_refused(name):
-    with pytest.raises(ExcludedProcessError, match="excluded topic"):
-        ToleranceFilter().check_process_name(name)
+# -- users can ask for any process ------------------------------------------
+@pytest.mark.parametrize(
+    "name", ["Underdelivery", "Over Delivery", "Defective Parts Return", "Short Shipment Handling"]
+)
+def test_business_process_names_do_not_overlap_the_exclusion(name):
+    """These name business events, not tolerance configuration."""
+    assert ToleranceFilter().check_process_name(name) == []
 
 
-@pytest.mark.parametrize("name", ["Defective Parts Return", "Dealer Warranty Claim Processing"])
-def test_in_scope_process_names_pass(name):
-    ToleranceFilter().check_process_name(name)
+def test_a_name_overlapping_the_vocabulary_is_reported_not_refused():
+    overlap = ToleranceFilter().check_process_name("Tolerance Management")
+    assert overlap, "the overlap should be reported"
+    # ...and reporting it is all that happens: no exception
 
 
-def test_the_refusal_says_how_to_override():
-    with pytest.raises(ExcludedProcessError, match="tolerance_terms.yaml"):
-        ToleranceFilter().check_process_name("Underdelivery")
-
-
-def test_pipeline_refuses_before_doing_any_work(tmp_path, fixtures_dir):
-    """The point is to fail in a second, not after the research stages."""
+def test_underdelivery_runs_end_to_end(tmp_path, fixtures_dir):
+    """The process a user actually asked for must produce a document."""
     settings = Settings(cache_dir=tmp_path / "c", output_dir=tmp_path / "o")
+    settings.ensure_dirs()
+    pipeline = Pipeline(settings, OfflineClient(fixtures_dir), offline=True, use_cache=False)
+    result, paths = pipeline.run("Underdelivery", confluence=OfflineConfluenceClient(fixtures_dir))
+    assert result.validation.passed, result.validation.errors
+    assert result.blueprint is not None
+    document = paths["markdown"].read_text(encoding="utf-8")
+    assert "Underdelivery" in document, "the document must be able to name its own process"
+
+
+def test_strict_mode_refuses_a_genuine_overlap(tmp_path, fixtures_dir):
+    """Opt-in behaviour, for a name that really is tolerance configuration."""
+    settings = Settings(cache_dir=tmp_path / "c", output_dir=tmp_path / "o",
+                        refuse_excluded_process=True)
     settings.ensure_dirs()
     client = OfflineClient(fixtures_dir)
     pipeline = Pipeline(settings, client, offline=True, use_cache=False)
-    with pytest.raises(ExcludedProcessError):
-        pipeline.run("Underdelivery", confluence=OfflineConfluenceClient(fixtures_dir))
-    assert client._research_calls == 0, "no research should have run"
+    with pytest.raises(ExcludedProcessError, match="REFUSE_EXCLUDED_PROCESS"):
+        pipeline.run("Tolerance Limit Configuration", confluence=OfflineConfluenceClient(fixtures_dir))
+    assert client._research_calls == 0, "strict mode should refuse before any research"
+
+
+def test_strict_mode_does_not_block_a_business_process(tmp_path, fixtures_dir):
+    settings = Settings(cache_dir=tmp_path / "c", output_dir=tmp_path / "o",
+                        refuse_excluded_process=True)
+    settings.ensure_dirs()
+    pipeline = Pipeline(settings, OfflineClient(fixtures_dir), offline=True, use_cache=False)
+    result, _ = pipeline.run("Underdelivery", confluence=OfflineConfluenceClient(fixtures_dir))
+    assert result.blueprint is not None
+
+
+def test_tolerance_content_is_still_excluded_for_such_a_process(tmp_path, fixtures_dir):
+    """Analysing 'Underdelivery' must not smuggle tolerance configuration in."""
+    settings = Settings(cache_dir=tmp_path / "c", output_dir=tmp_path / "o")
+    settings.ensure_dirs()
+    pipeline = Pipeline(settings, OfflineClient(fixtures_dir), offline=True, use_cache=False)
+    result, _ = pipeline.run("Underdelivery", confluence=OfflineConfluenceClient(fixtures_dir))
+    assert any(record.rule == "tolerance" for record in result.validation.exclusions)
 
 
 # -- evidence budgeting ------------------------------------------------------

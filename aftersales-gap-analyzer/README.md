@@ -31,7 +31,7 @@ process name ─► Confluence ─┤                     ├─► SAP research
 
 | Guarantee | How it is enforced |
 | --- | --- |
-| **Tolerance topics never appear** - not in the input, the research, the analysis or the output | Four checkpoints: input pre-filter, research-snippet pre-filter, an explicit prompt rule, and post-generation re-scanning; a final gate fails the run if anything survives |
+| **Tolerance configuration never appears** - not in the input, the research, the analysis or the output | Four checkpoints: input pre-filter, research-snippet pre-filter, an explicit prompt rule, and post-generation re-scanning; a final gate fails the run if anything survives. Over/under-delivery terms are contextual, so the *business events* stay analysable - see `docs/METHODOLOGY.md` |
 | **A T-code only appears with proof** | Candidate must match SAP transaction-code shape, be cited from an official public SAP domain, **and** be literally present in the fetched page text. Failures are dropped and listed with the reason |
 | **Industry content is KPI-free** | Numeric and metric vocabulary is stripped pre- and post-generation; the rendered industry section is re-checked by the final gate |
 | **Industry research is broad, then filtered** | Ten differently-framed web queries plus five OpenAlex queries, searched unrestricted, then filtered against a credible-source allowlist. Rejected sources are published in the report |

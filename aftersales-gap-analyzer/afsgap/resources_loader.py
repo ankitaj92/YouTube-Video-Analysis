@@ -22,3 +22,16 @@ def load_resource(name: str, resource_dir: str | None = None) -> dict[str, Any]:
 
 def compile_patterns(patterns: list[str]) -> list[re.Pattern[str]]:
     return [re.compile(p, re.IGNORECASE) for p in patterns]
+
+
+def compile_contextual(entries: list[dict[str, Any]]) -> list[tuple[re.Pattern[str], list[re.Pattern[str]]]]:
+    """Compile ``[{pattern, requires: [...]}]`` into (pattern, context) pairs."""
+    compiled = []
+    for entry in entries or []:
+        pattern = entry.get("pattern")
+        if not pattern:
+            continue
+        compiled.append(
+            (re.compile(pattern, re.IGNORECASE), compile_patterns(list(entry.get("requires", []))))
+        )
+    return compiled

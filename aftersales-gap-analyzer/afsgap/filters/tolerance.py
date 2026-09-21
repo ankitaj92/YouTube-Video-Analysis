@@ -13,10 +13,11 @@ enforced four times:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..models import ExclusionRecord, ValidationReport
-from ..resources_loader import compile_patterns, load_resource
+from ..resources_loader import compile_contextual, compile_patterns, load_resource
 from .base import PatternFilter
 
 PROMPT_RULE = (
@@ -31,7 +32,7 @@ PROMPT_RULE = (
 
 
 class ExcludedProcessError(RuntimeError):
-    """The requested process is itself an excluded topic."""
+    """Raised only in strict mode, when the requested process is an excluded topic."""
 
 
 class ToleranceFilter(PatternFilter):
@@ -42,6 +43,7 @@ class ToleranceFilter(PatternFilter):
         super().__init__(
             patterns=compile_patterns(data.get("patterns", [])),
             allowances=compile_patterns(data.get("allowances", [])),
+            contextual=compile_contextual(data.get("contextual", [])),
         )
 
     # -- convenience wrappers used by the pipeline stages -------------------
@@ -78,31 +80,46 @@ class ToleranceFilter(PatternFilter):
             )
         return cleaned
 
-    def check_process_name(self, process_name: str) -> None:
-        """Refuse, up front, to analyse a process the exclusion list covers.
+    def check_process_name(self, process_name: str) -> list[str]:
+        """Report whether the requested process name overlaps the exclusion list.
 
-        Without this the run does all the work and then produces an empty
-        document: every query, every source and every finding about the process
-        is stripped by the very filter that defines the programme's scope. A
-        clear refusal in one second beats a blank report in twenty minutes.
+        This is advisory, not a veto. Users search for whatever their landscape
+        calls the process, and a name is an identifier, not a claim: "Underdelivery"
+        is a real aftersales process (a short shipment raised as a discrepancy),
+        even though tolerance configuration also talks about under-delivery.
+
+        The caller decides what to do. By default the run proceeds, the name is
+        allowed through the filters so the document can be titled, and the
+        overlap is recorded. A programme that wants the stricter behaviour can
+        turn refusal on.
         """
-        hits = self.matches(process_name)
-        if not hits:
+        return sorted({hit.lower() for hit in self.matches(process_name)})
+
+    def allow_process_name(self, process_name: str) -> None:
+        """Let the process name itself survive filtering for this run.
+
+        Without this, a process called "Tolerance Management" would have its own
+        title stripped out of the document. The allowance covers the name as a
+        phrase only - tolerance *content* is still excluded exactly as before.
+        """
+        name = (process_name or "").strip()
+        if not name:
             return
-        terms = sorted({hit.lower() for hit in hits})
-        raise ExcludedProcessError(
-            f"'{process_name}' is itself an excluded topic (matched: {', '.join(terms)}).\n\n"
-            "This programme excludes tolerance topics end to end, so a run for this process "
-            "would strip its own research and produce an empty document.\n\n"
-            "If the exclusion is right, analyse a different process. If this process really is "
-            "in scope, remove the matching pattern from "
-            "afsgap/resources/tolerance_terms.yaml and re-run - the exclusion list is meant to "
-            "be edited, and `python -m afsgap check-filters \"<text>\"` shows the effect."
-        )
+        self.allowances.append(re.compile(re.escape(name), re.IGNORECASE))
 
     def assert_clean(self, text: str, stage: str, report: ValidationReport) -> None:
-        """Final gate over the rendered document."""
-        hits = self.matches(text)
+        """Final gate over the rendered document.
+
+        Scanned sentence by sentence, because a contextual rule asks whether
+        *this* statement is about tolerances. Judging the whole document at once
+        would let the word "limit" in a roadmap make an unrelated sentence about
+        an under-delivery look like tolerance configuration.
+        """
+        from .segmentation import segment
+
+        hits: list[str] = []
+        for part in segment(text):
+            hits.extend(self.matches(part))
         if hits:
             report.error(
                 f"[tolerance] final document still contains excluded terms "

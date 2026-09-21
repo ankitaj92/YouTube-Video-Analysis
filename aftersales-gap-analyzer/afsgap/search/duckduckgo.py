@@ -1,15 +1,26 @@
-"""DuckDuckGo search backend.
+"""Web search via DuckDuckGo and friends.
 
-No API key and no account - which is the point for a local test setup. Two
-transports, tried in order:
+## Why this is more than a one-line call
 
-1. the ``ddgs`` package, if installed (maintained, handles the moving parts);
-2. DuckDuckGo's HTML endpoint, parsed directly, as a fallback.
+The `duckduckgo-search` package became `ddgs`, and `ddgs` is no longer a
+DuckDuckGo client - it is a metasearch aggregator. Three of its behaviours ruin
+results for this use case unless they are handled:
 
-Domain restriction is done twice: ``site:`` operators to steer the engine, and a
-hard filter on the returned domains, because ``site:`` is a hint rather than a
-guarantee. That matters for SAP research, where a result from outside the
-official SAP domains must never become an "SAP fact".
+1. **`backend="auto"` queries Wikipedia and Grokipedia first.** For "SAP EWM
+   returns inbound delivery" those return encyclopaedia entries, not SAP
+   documentation, and they are queried on every single search.
+2. **Its ranker pulls any `wikipedia.org` result to the top**, unconditionally,
+   ahead of the SAP page you actually need.
+3. **It raises `DDGSException("No results found.")`** instead of returning an
+   empty list, so an ordinary empty result reads like a failure.
+
+On top of that, aggregation stops as soon as `max_results` is reached - so with
+a small `max_results` the quota fills with junk before a useful engine replies.
+
+This module therefore pins the engines, over-fetches before domain filtering,
+and treats "no results" as empty rather than exceptional. It also still works
+with the older `duckduckgo_search` package, and falls back to DuckDuckGo's HTML
+endpoint when neither library is installed.
 """
 
 from __future__ import annotations
@@ -20,8 +31,6 @@ import time
 from html import unescape
 from typing import Sequence
 from urllib.parse import parse_qs, unquote, urlparse
-
-import requests
 
 from ..config import Settings
 from ..filters.sources import domain_of
@@ -35,6 +44,10 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/122.0 Safari/537.36"
 )
+
+# Engines whose results are noise for SAP and industry research. Excluded from
+# the default engine list; see the module docstring.
+ENCYCLOPAEDIC_ENGINES = {"wikipedia", "grokipedia"}
 
 _RESULT = re.compile(
     r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>'
@@ -60,6 +73,43 @@ def _unwrap(href: str) -> str:
     return href
 
 
+def available_engines() -> set[str]:
+    """Engine names the installed ddgs actually offers (empty if unknown)."""
+    try:
+        from ddgs.engines import ENGINES  # type: ignore
+
+        return set(ENGINES.get("text", {}))
+    except Exception:
+        return set()
+
+
+def resolve_engines(requested: str) -> str:
+    """Validate the configured engine list against what is installed.
+
+    An unknown name makes ddgs log a warning and silently skip it; if every
+    name is unknown the search returns nothing at all. Checking here means a
+    stale setting produces one clear message instead of empty research.
+    """
+    names = [name.strip() for name in (requested or "").split(",") if name.strip()]
+    if not names:
+        names = ["duckduckgo"]
+    installed = available_engines()
+    if not installed:
+        return ",".join(names)
+
+    usable = [name for name in names if name in installed]
+    unknown = [name for name in names if name not in installed]
+    if unknown:
+        logger.warning(
+            "Search engines %s are not available in this version of ddgs (available: %s).",
+            ", ".join(unknown), ", ".join(sorted(installed)),
+        )
+    if not usable:
+        usable = sorted(installed - ENCYCLOPAEDIC_ENGINES) or sorted(installed)
+        logger.warning("Falling back to engines: %s", ", ".join(usable))
+    return ",".join(usable)
+
+
 class DuckDuckGoBackend:
     name = "duckduckgo"
 
@@ -71,13 +121,22 @@ class DuckDuckGoBackend:
         # ddgs uses its own HTTP stack, so it needs the CA bundle passed in
         # rather than inheriting the session's settings.
         self.verify = resolve_verify(settings)
-        self._ddgs = None
+        self.engines = resolve_engines(settings.ddgs_backends)
+
+        self._client = None          # ddgs (new) or duckduckgo_search (legacy)
+        self._legacy = False
         try:
             from ddgs import DDGS  # type: ignore
 
-            self._ddgs = DDGS
+            self._client = DDGS
         except ImportError:
-            logger.info("ddgs package not installed - using the DuckDuckGo HTML endpoint.")
+            try:
+                from duckduckgo_search import DDGS  # type: ignore
+
+                self._client, self._legacy = DDGS, True
+                logger.info("Using the legacy duckduckgo_search package.")
+            except ImportError:
+                logger.info("Neither ddgs nor duckduckgo_search installed - using the HTML endpoint.")
 
     # ------------------------------------------------------------------
     def search(
@@ -86,12 +145,18 @@ class DuckDuckGoBackend:
         max_results: int = 8,
         allowed_domains: Sequence[str] | None = None,
     ) -> list[SearchResult]:
-        queries = self._expand(query, allowed_domains)
+        # Domain filtering happens after the engine has answered, so ask for
+        # more than we need - otherwise a page of unrelated results leaves
+        # nothing once filtered.
+        per_query = max_results if not allowed_domains else min(
+            max_results * self.settings.search_overfetch, 50
+        )
+
         found: dict[str, SearchResult] = {}
-        for index, expanded in enumerate(queries):
+        for index, expanded in enumerate(self._expand(query, allowed_domains)):
             if index and self.pause:
-                time.sleep(self.pause)   # DuckDuckGo rate-limits eager clients
-            for result in self._one(expanded, max_results):
+                time.sleep(self.pause)   # engines rate-limit eager clients
+            for result in self._one(expanded, per_query):
                 if not result.url or result.url in found:
                     continue
                 if allowed_domains and not self._allowed(result.url, allowed_domains):
@@ -121,37 +186,42 @@ class DuckDuckGoBackend:
 
     # ------------------------------------------------------------------
     def _one(self, query: str, max_results: int) -> list[SearchResult]:
-        if self._ddgs is not None:
+        if self._client is not None:
             try:
                 return self._via_package(query, max_results)
-            except Exception as exc:  # the package raises its own exception types
-                logger.warning("ddgs search failed for %r (%s); falling back to HTML.", query, exc)
+            except Exception as exc:
+                if self._is_empty_result(exc):
+                    logger.debug("No results for %r.", query)
+                    return []
+                logger.warning("Search library failed for %r (%s); trying the HTML endpoint.", query, exc)
         try:
             return self._via_html(query, max_results)
         except Exception as exc:
             if is_tls_trust_error(exc):
                 logger.error(
                     "Search is blocked by corporate TLS interception - the proxy's certificate "
-                    "authority is not trusted yet. Run `python -m afsgap doctor` for the fix. "
-                    "(No further search attempts will succeed until it is resolved.)"
+                    "authority is not trusted yet. Run `python -m afsgap doctor` for the fix."
                 )
             else:
                 logger.warning("DuckDuckGo HTML search failed for %r: %s", query, exc)
             return []
 
+    @staticmethod
+    def _is_empty_result(exc: BaseException) -> bool:
+        """ddgs raises for an empty result set; that is not a failure."""
+        return "no results" in str(exc).lower()
+
     def _via_package(self, query: str, max_results: int) -> list[SearchResult]:
+        kwargs = {"max_results": max_results, "safesearch": "moderate"}
+        if not self._legacy:
+            # Pin the engines: 'auto' leads with encyclopaedia sources and its
+            # ranker promotes wikipedia.org above everything else.
+            kwargs["backend"] = self.engines
+
         results: list[SearchResult] = []
-        with self._ddgs(timeout=self.timeout, verify=self.verify) as client:
-            # ddgs fans out across many providers by default (Google, Brave,
-            # Yahoo, Wikipedia, ...). On a corporate IP that earns 429s within a
-            # few queries and buries the log, so pin it to the engines that
-            # actually serve this use case.
-            for item in client.text(
-                query,
-                max_results=max_results,
-                safesearch="moderate",
-                backend=self.settings.ddgs_backends,
-            ):
+        client = self._client(timeout=self.timeout, verify=self.verify) if not self._legacy else self._client()
+        with client as session:
+            for item in session.text(query, **kwargs) or []:
                 url = item.get("href") or item.get("url") or item.get("link") or ""
                 results.append(
                     SearchResult(

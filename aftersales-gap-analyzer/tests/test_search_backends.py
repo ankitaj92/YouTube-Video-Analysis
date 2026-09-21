@@ -146,3 +146,128 @@ def test_plain_url_strings_are_accepted(tmp_path):
 def test_shipped_seed_file_is_empty_by_default():
     """Seeds are the user's own sources - nothing is guessed on their behalf."""
     assert SeedsBackend(Settings()).entries == []
+
+
+# -- ddgs 9.x semantics ------------------------------------------------------
+from afsgap.search.duckduckgo import (  # noqa: E402
+    ENCYCLOPAEDIC_ENGINES,
+    DuckDuckGoBackend,
+    available_engines,
+    resolve_engines,
+)
+
+
+def test_encyclopaedic_engines_are_not_in_the_default_list():
+    """ddgs 'auto' leads with Wikipedia/Grokipedia and ranks wikipedia.org top -
+    the wrong answer when researching SAP documentation."""
+    configured = set(Settings().ddgs_backends.split(","))
+    assert not (configured & ENCYCLOPAEDIC_ENGINES)
+    assert "duckduckgo" in configured
+    assert "auto" not in configured
+
+
+def test_configured_engines_exist_in_the_installed_library():
+    installed = available_engines()
+    if not installed:
+        pytest.skip("search library not installed")
+    for name in Settings().ddgs_backends.split(","):
+        assert name in installed, f"{name} is not an engine this ddgs version offers"
+
+
+def test_unknown_engines_fall_back_rather_than_returning_nothing():
+    resolved = resolve_engines("bing,yandex")
+    assert resolved, "an all-unknown list must not resolve to an empty engine list"
+    assert not (set(resolved.split(",")) & ENCYCLOPAEDIC_ENGINES)
+
+
+def test_engine_list_is_pinned_on_every_query(monkeypatch):
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0))
+    if backend._client is None or backend._legacy:
+        pytest.skip("new ddgs not installed")
+    seen = {}
+
+    class FakeSession:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def text(self, query, **kwargs):
+            seen.update(kwargs)
+            return []
+
+    monkeypatch.setattr(backend, "_client", lambda **kw: FakeSession())
+    backend.search("anything")
+    assert seen.get("backend") == backend.engines
+
+
+def test_empty_results_are_not_treated_as_a_failure(monkeypatch, caplog):
+    """ddgs raises DDGSException('No results found.') instead of returning []."""
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0))
+
+    def raise_empty(*a, **k):
+        raise RuntimeError("No results found.")
+
+    monkeypatch.setattr(backend, "_via_package", raise_empty)
+    monkeypatch.setattr(backend, "_via_html", lambda *a, **k: [])
+    with caplog.at_level("WARNING"):
+        assert backend.search("anything") == []
+    assert "No results found" not in caplog.text, "an empty result set is not a warning"
+
+
+def test_domain_filtering_over_fetches_first(monkeypatch):
+    """Asking for 8 and filtering to one domain usually leaves nothing, so the
+    engine must be asked for more than the caller wants."""
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0, search_overfetch=4))
+    asked: list[int] = []
+
+    def fake_one(query, max_results):
+        asked.append(max_results)
+        return []
+
+    monkeypatch.setattr(backend, "_one", fake_one)
+    backend.search("q", max_results=8, allowed_domains=["help.sap.com"])
+    assert asked and all(n > 8 for n in asked), f"expected over-fetch, got {asked}"
+
+
+def test_no_over_fetch_without_domain_restriction(monkeypatch):
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0))
+    asked: list[int] = []
+    monkeypatch.setattr(backend, "_one", lambda q, n: asked.append(n) or [])
+    backend.search("q", max_results=8)
+    assert asked == [8]
+
+
+def test_legacy_package_is_called_without_the_backend_argument(monkeypatch):
+    """The older duckduckgo_search has no 'backend' parameter."""
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0))
+    backend._legacy = True
+    seen = {}
+
+    class FakeSession:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def text(self, query, **kwargs):
+            seen.update(kwargs)
+            return [{"href": "https://help.sap.com/x", "title": "T", "body": "B"}]
+
+    monkeypatch.setattr(backend, "_client", lambda *a, **k: FakeSession())
+    results = backend.search("q")
+    assert "backend" not in seen
+    assert results[0].url == "https://help.sap.com/x"
+
+
+def test_result_keys_from_either_library_are_handled(monkeypatch):
+    backend = DuckDuckGoBackend(Settings(search_pause_seconds=0))
+
+    class FakeSession:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def text(self, query, **kwargs):
+            return [
+                {"href": "https://a.example/1", "title": "A", "body": "body text"},
+                {"url": "https://b.example/2", "title": "B", "description": "desc text"},
+            ]
+
+    monkeypatch.setattr(backend, "_client", lambda **kw: FakeSession())
+    backend._legacy = False
+    results = backend.search("q", max_results=5)
+    assert [r.url for r in results] == ["https://a.example/1", "https://b.example/2"]
+    assert results[0].snippet == "body text" and results[1].snippet == "desc text"

@@ -3,6 +3,7 @@
     python -m afsgap run "Defective Parts Return"              # reads Confluence
     python -m afsgap run "Defective Parts Return" --llm ollama # fully local
     python -m afsgap doctor                                    # check the local setup
+    python -m afsgap search-test "SAP returns process"         # debug search quality
     python -m afsgap export-ca-bundle                          # corporate TLS proxy fix
     python -m afsgap run data/processes/defective_parts_return.yaml
     python -m afsgap run "Battery Pack Return" --new           # design it from scratch
@@ -69,6 +70,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     export_ca.add_argument("--out", default=str(PROJECT_ROOT / "corp-ca-bundle.pem"),
                            help="where to write the bundle")
+
+    search_test = sub.add_parser(
+        "search-test", help="run one query through the search backends and show what comes back"
+    )
+    search_test.add_argument("query", help="the query to run")
+    search_test.add_argument("--search", default=None, help="backend or chain to test")
+    search_test.add_argument("--sap", action="store_true",
+                             help="restrict to the official SAP domains, as SAP research does")
+    search_test.add_argument("--limit", type=int, default=8)
 
     sub.add_parser("list-processes", help="list the local process definitions in data/processes")
 
@@ -299,6 +309,37 @@ def main(argv: list[str] | None = None) -> int:
         print()
         print("Add this line to your .env, then re-run `python -m afsgap doctor`:")
         print(f"  AFSGAP_CA_BUNDLE={path}")
+        return 0
+
+    if args.command == "search-test":
+        from .filters.sources import SourceClassifier
+        from .search.base import build_backend
+        from .search.duckduckgo import available_engines, resolve_engines
+
+        installed = available_engines()
+        if installed:
+            print(f"Search library engines available : {', '.join(sorted(installed))}")
+            print(f"Engines this run will use        : {resolve_engines(settings.ddgs_backends)}")
+        allowed = SourceClassifier().sap_official if args.sap else None
+        backend = build_backend(settings, args.search)
+        print(f"Backend                          : {backend.name}")
+        print(f"Domain restriction               : {'official SAP domains' if args.sap else 'none'}")
+        print()
+        results = backend.search(args.query, max_results=args.limit, allowed_domains=allowed)
+        if not results:
+            print("No results.")
+            print()
+            print("If TLS is fine (check `afsgap doctor`), the usual causes are a blocked search")
+            print("engine or rate limiting. Try --search mojeek, or supply URLs yourself via the")
+            print("seeds backend - see docs/CORPORATE_NETWORK.md.")
+            return 1
+        for index, result in enumerate(results, start=1):
+            print(f"{index:2}. {result.title[:88] or '(no title)'}")
+            print(f"    {result.url}")
+            if result.snippet:
+                print(f"    {result.snippet[:120]}")
+        print()
+        print(f"{len(results)} result(s).")
         return 0
 
     if args.command == "doctor":

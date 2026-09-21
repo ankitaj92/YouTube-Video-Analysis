@@ -177,6 +177,8 @@ and rate every 30 seconds.
 | Stages look truncated | raise `AFSGAP_OLLAMA_NUM_CTX` (and check the model supports it) |
 | Prompt trimming in the log | lower `AFSGAP_LOCAL_PAGE_CHARS` or `AFSGAP_LOCAL_MAX_PAGES` |
 | `CERTIFICATE_VERIFY_FAILED` on every call | corporate TLS interception - see `docs/CORPORATE_NETWORK.md`; usually `pip install truststore` is the whole fix |
+| Results are irrelevant (Wikipedia, encyclopaedia pages) | `ddgs` defaults to `backend="auto"`, which queries Wikipedia and Grokipedia first and ranks `wikipedia.org` above everything else. afsgap pins the engines instead - check `python -m afsgap search-test "<query>" --sap` |
+| "No results found." raised as an error | `ddgs` raises instead of returning an empty list; afsgap treats that as empty. If you see it as an error you are on an older copy |
 | DuckDuckGo returns nothing | rule out TLS first (`python -m afsgap doctor`), then rate limiting: raise `AFSGAP_SEARCH_PAUSE` and re-run - stages are cached, so you keep what already worked |
 | Want zero outbound traffic | `--search none` plus `AFSGAP_OPENALEX_ENABLED=false`; the run still completes and the document states that research returned nothing |
 

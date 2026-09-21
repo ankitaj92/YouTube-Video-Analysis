@@ -87,6 +87,7 @@ Output lands in `output/`:
 python -m afsgap run "<process name>"      # read the process from Confluence
 python -m afsgap run <process.yaml>        # or from a local definition
 python -m afsgap confluence-search "<process name>"   # preview what would be matched
+python -m afsgap search-test "SAP returns process" --sap   # debug search quality
 
 # run options
   --page-id 123456     use a specific Confluence page instead of searching
@@ -135,6 +136,7 @@ Use `python -m afsgap check-filters "<text>"` to see the effect of an edit immed
 * `docs/CONFLUENCE.md` - connecting Confluence, matching, and what makes a good process page
 * `docs/LOCAL_MODE.md` - running entirely on your own machine with Ollama and DuckDuckGo
 * `docs/CORPORATE_NETWORK.md` - TLS interception, proxies, and `CERTIFICATE_VERIFY_FAILED`
+* `docs/PRODUCTION_READINESS.md` - what is solid, what is missing, what is unverified
 * `docs/PYCHARM_SETUP.md` - local setup, run configurations, debugging
 * `docs/WEEKEND_PLAN.md` - hour-by-hour plan to finish this weekend
 * `docs/METHODOLOGY.md` - how to defend the output in a design review

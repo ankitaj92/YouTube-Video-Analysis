@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "afsgap"
+version = "0.2.0"
+description = "Automotive aftersales process gap analysis against SAP standards and industry practice"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+
+dependencies = [
+    "pydantic>=2.6",
+    "PyYAML>=6.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "truststore>=0.9",
+]
+
+[project.optional-dependencies]
+hosted = ["anthropic>=1.0.0"]
+local = ["ddgs>=9.0"]
+docx = ["python-docx>=1.1"]
+dev = ["pytest>=8.0"]
+all = ["anthropic>=1.0.0", "ddgs>=9.0", "python-docx>=1.1", "pytest>=8.0"]
+
+[project.scripts]
+afsgap = "afsgap.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["afsgap*"]
+
+[tool.setuptools.package-data]
+afsgap = ["resources/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

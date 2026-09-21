@@ -98,7 +98,14 @@ class Settings:
     search_steered_domains: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_STEERED_DOMAINS", 2))
     # Which engines ddgs may use. "auto" fans out across a dozen providers and
     # collects rate limits; this keeps it to ones that answer reliably.
-    ddgs_backends: str = field(default_factory=lambda: os.getenv("AFSGAP_DDGS_BACKENDS", "duckduckgo,mojeek,brave"))
+    # Which engines the search library may use. "auto" leads with Wikipedia and
+    # Grokipedia and promotes wikipedia.org to the top of the results, which is
+    # the wrong answer for SAP documentation.
+    ddgs_backends: str = field(
+        default_factory=lambda: os.getenv("AFSGAP_DDGS_BACKENDS", "duckduckgo,brave,mojeek,startpage,yahoo")
+    )
+    # Domain filtering happens after the engine answers, so over-fetch first.
+    search_overfetch: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_OVERFETCH", 4))
 
     # Drop an evidence quote that is not literally present in the page it cites.
     # Cheap insurance against a small local model paraphrasing a source into

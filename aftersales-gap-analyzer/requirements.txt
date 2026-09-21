@@ -5,6 +5,10 @@ PyYAML>=6.0             # process definitions and the editable filter resources
 requests>=2.31          # OpenAlex + page fetch for T-code verification
 python-dotenv>=1.0      # local .env for the API key
 
+# Corporate networks: routes Python TLS through the OS certificate store, so a
+# proxy's CA that IT already installed on the machine is trusted automatically.
+truststore>=0.9
+
 # Local mode (Ollama + DuckDuckGo). Both are optional:
 #   - ollama itself is a separate install (https://ollama.com), not a pip package
 #   - ddgs gives a maintained DuckDuckGo client; without it the HTML endpoint is used

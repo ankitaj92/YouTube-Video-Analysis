@@ -12,6 +12,10 @@ exclusions, the same T-code verification, the same document.
 
 ## Setup
 
+On a managed work laptop, run `python -m afsgap doctor` first - corporate TLS
+interception breaks every outbound call and has its own guide,
+`docs/CORPORATE_NETWORK.md`.
+
 ```bash
 # 1. install Ollama            https://ollama.com/download
 ollama serve                   # usually already running as a service
@@ -114,7 +118,8 @@ whether the analysis quality justifies a hosted run later.
 | Ollama times out | raise `AFSGAP_OLLAMA_TIMEOUT`, or lower `AFSGAP_LOCAL_MAX_PAGES` |
 | Stages look truncated | raise `AFSGAP_OLLAMA_NUM_CTX` (and check the model supports it) |
 | Prompt trimming in the log | lower `AFSGAP_LOCAL_PAGE_CHARS` or `AFSGAP_LOCAL_MAX_PAGES` |
-| DuckDuckGo returns nothing | you are probably rate-limited; raise `AFSGAP_SEARCH_PAUSE` and re-run - stages are cached, so you keep what already worked |
+| `CERTIFICATE_VERIFY_FAILED` on every call | corporate TLS interception - see `docs/CORPORATE_NETWORK.md`; usually `pip install truststore` is the whole fix |
+| DuckDuckGo returns nothing | rule out TLS first (`python -m afsgap doctor`), then rate limiting: raise `AFSGAP_SEARCH_PAUSE` and re-run - stages are cached, so you keep what already worked |
 | Want zero outbound traffic | `--search none` plus `AFSGAP_OPENALEX_ENABLED=false`; the run still completes and the document states that research returned nothing |
 
 ## What this does not solve

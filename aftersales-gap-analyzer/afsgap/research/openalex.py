@@ -38,6 +38,7 @@ def search_works(
     from_year: int = 2015,
     mailto: str = "",
     timeout: int = 30,
+    session: Any | None = None,
 ) -> list[ScholarlyWork]:
     params: dict[str, Any] = {
         "search": query,
@@ -49,11 +50,20 @@ def search_works(
         params["mailto"] = mailto
 
     try:
-        response = requests.get(OPENALEX_WORKS, params=params, timeout=timeout)
+        getter = session.get if session is not None else requests.get
+        response = getter(OPENALEX_WORKS, params=params, timeout=timeout)
         response.raise_for_status()
         payload = response.json()
     except Exception as exc:
-        logger.warning("OpenAlex query %r failed: %s", query, exc)
+        from ..net import is_tls_trust_error
+
+        if is_tls_trust_error(exc):
+            logger.warning(
+                "OpenAlex is unreachable: the corporate certificate authority is not trusted. "
+                "Run `python -m afsgap doctor` for the fix."
+            )
+        else:
+            logger.warning("OpenAlex query %r failed: %s", query, exc)
         return []
 
     works: list[ScholarlyWork] = []

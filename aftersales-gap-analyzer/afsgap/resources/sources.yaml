@@ -3,7 +3,18 @@
 # sap_official    : the ONLY domains a T-code, module name or standard process
 #                   step may be sourced from. Anything outside this list is
 #                   research colour, never an SAP fact.
-# industry_credible: the allowlist industry benchmark findings are filtered
+# # Domains worth aiming a `site:` search at. These are public and well indexed;
+# the rest of the SAP allowlist stays valid as a *filter* for results, but
+# steering a query at a login-walled domain (support.sap.com, launchpad) simply
+# returns nothing.
+search_priority:
+  - help.sap.com
+  - community.sap.com
+  - blogs.sap.com
+  - www.sap.com
+  - learning.sap.com
+
+industry_credible: the allowlist industry benchmark findings are filtered
 #                   against AFTER a normal (unrestricted) web search.
 # scholarly       : handled separately through the OpenAlex API.
 # denied          : never usable, even if a search returns them.
@@ -23,6 +34,17 @@ sap_official:
   - discovery-center.cloud.sap
   - influence.sap.com
   - me.sap.com
+
+# Domains worth aiming a `site:` search at. These are public and well indexed;
+# the rest of the SAP allowlist stays valid as a *filter* for results, but
+# steering a query at a login-walled domain (support.sap.com, launchpad) simply
+# returns nothing.
+search_priority:
+  - help.sap.com
+  - community.sap.com
+  - blogs.sap.com
+  - www.sap.com
+  - learning.sap.com
 
 industry_credible:
   consultancy:

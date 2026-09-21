@@ -26,6 +26,7 @@ import requests
 from pydantic import BaseModel, ValidationError
 
 from ..config import Settings
+from ..net import build_session, is_tls_trust_error
 from ..research.http import fetch_text
 from ..research.transcript import ResearchTranscript, SearchHit
 from ..search.base import SearchBackend
@@ -48,6 +49,7 @@ class OllamaClient:
         self.search = search
         self.host = settings.ollama_host.rstrip("/")
         self.model = settings.ollama_model
+        self.session = build_session(settings)      # for page fetches, not for Ollama itself
 
     # ------------------------------------------------------------------
     # health
@@ -109,7 +111,7 @@ class OllamaClient:
         budget = self.settings.local_max_pages
         excerpts: list[str] = []
         for hit in transcript.hits[:budget]:
-            page = fetch_text(hit.url, self.settings.cache_dir, self.settings.http_timeout)
+            page = fetch_text(hit.url, self.settings.cache_dir, self.settings.http_timeout, self.session)
             if not page:
                 continue
             excerpt = page[: self.settings.local_page_chars]

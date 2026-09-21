@@ -24,6 +24,7 @@ from ..filters.kpi import KpiFilter
 from ..filters.sources import SourceClassifier
 from ..filters.tolerance import ToleranceFilter
 from ..llm import ClaudeClient
+from ..net import build_session
 from ..models import (
     CurrentProcess,
     IndustryBenchmark,
@@ -83,6 +84,7 @@ class IndustryResearcher:
         self.classifier = classifier
         self.tolerance = tolerance
         self.kpi = kpi
+        self.session = build_session(settings)
 
     def run(self, process: CurrentProcess, report: ValidationReport) -> IndustryResearchResult:
         web_queries, scholarly_queries = build_industry_queries(process)
@@ -165,6 +167,7 @@ class IndustryResearcher:
                 from_year=self.settings.openalex_from_year,
                 mailto=self.settings.openalex_mailto,
                 timeout=self.settings.http_timeout,
+                session=self.session,
             ):
                 key = (work.doi or work.url or work.title).lower()
                 if key in seen:

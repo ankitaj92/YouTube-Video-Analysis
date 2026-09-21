@@ -25,6 +25,7 @@ import requests
 
 from ..config import Settings
 from ..filters.sources import domain_of
+from ..net import build_session, is_tls_trust_error, resolve_verify
 from .base import SearchResult
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,10 @@ class DuckDuckGoBackend:
         self.settings = settings
         self.timeout = settings.http_timeout
         self.pause = settings.search_pause_seconds
+        self.session = build_session(settings)
+        # ddgs uses its own HTTP stack, so it needs the CA bundle passed in
+        # rather than inheriting the session's settings.
+        self.verify = resolve_verify(settings)
         self._ddgs = None
         try:
             from ddgs import DDGS  # type: ignore
@@ -99,10 +104,15 @@ class DuckDuckGoBackend:
     def _expand(self, query: str, allowed_domains: Sequence[str] | None) -> list[str]:
         if not allowed_domains:
             return [query]
-        # Steer the engine at the two or three most useful domains, then still
-        # run the bare query so nothing on the wider allowlist is missed.
-        steered = [f"{query} site:{domain}" for domain in list(allowed_domains)[:3]]
-        return steered + [query]
+        # Steer the engine at the allowlisted domains that are actually worth
+        # searching. Order matters: a login-walled domain such as
+        # support.sap.com is barely indexed, so steering at it returns nothing
+        # and wastes a query. Priority domains are tried first, and the bare
+        # query still runs so nothing on the wider allowlist is missed.
+        allowed = list(allowed_domains)
+        priority = [domain for domain in self.settings.search_priority_domains if domain in allowed]
+        chosen = (priority or allowed)[: self.settings.search_steered_domains]
+        return [f"{query} site:{domain}" for domain in chosen] + [query]
 
     @staticmethod
     def _allowed(url: str, allowed_domains: Sequence[str]) -> bool:
@@ -119,12 +129,19 @@ class DuckDuckGoBackend:
         try:
             return self._via_html(query, max_results)
         except Exception as exc:
-            logger.warning("DuckDuckGo HTML search failed for %r: %s", query, exc)
+            if is_tls_trust_error(exc):
+                logger.error(
+                    "Search is blocked by corporate TLS interception - the proxy's certificate "
+                    "authority is not trusted yet. Run `python -m afsgap doctor` for the fix. "
+                    "(No further search attempts will succeed until it is resolved.)"
+                )
+            else:
+                logger.warning("DuckDuckGo HTML search failed for %r: %s", query, exc)
             return []
 
     def _via_package(self, query: str, max_results: int) -> list[SearchResult]:
         results: list[SearchResult] = []
-        with self._ddgs() as client:
+        with self._ddgs(timeout=self.timeout, verify=self.verify) as client:
             for item in client.text(query, max_results=max_results, safesearch="moderate"):
                 url = item.get("href") or item.get("url") or item.get("link") or ""
                 results.append(
@@ -138,7 +155,7 @@ class DuckDuckGoBackend:
         return results
 
     def _via_html(self, query: str, max_results: int) -> list[SearchResult]:
-        response = requests.post(
+        response = self.session.post(
             HTML_ENDPOINT,
             data={"q": query},
             timeout=self.timeout,

@@ -13,6 +13,7 @@ from ..config import Settings
 from ..filters.sources import SourceClassifier
 from ..filters.tolerance import ToleranceFilter
 from ..llm import ClaudeClient
+from ..net import build_session
 from ..models import (
     CurrentProcess,
     DroppedTCode,
@@ -109,6 +110,7 @@ class SapResearcher:
             cache_dir=settings.cache_dir,
             timeout=settings.http_timeout,
             require_literal_evidence=settings.require_literal_tcode_evidence,
+            session=build_session(settings),
         )
 
     def run(self, process: CurrentProcess, report: ValidationReport) -> SapResearchResult:

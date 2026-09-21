@@ -64,11 +64,13 @@ class TCodeVerifier:
         cache_dir: Path,
         timeout: int = 30,
         require_literal_evidence: bool = True,
+        session=None,
     ) -> None:
         self.classifier = classifier
         self.cache_dir = cache_dir
         self.timeout = timeout
         self.require_literal_evidence = require_literal_evidence
+        self.session = session
 
     def verify(self, candidates: list[TCodeCandidate]) -> tuple[list[VerifiedTCode], list[DroppedTCode]]:
         verified: list[VerifiedTCode] = []
@@ -96,7 +98,7 @@ class TCodeVerifier:
                 continue
 
             if self.require_literal_evidence:
-                page = fetch_text(candidate.source_url, self.cache_dir, self.timeout)
+                page = fetch_text(candidate.source_url, self.cache_dir, self.timeout, self.session)
                 if not page:
                     dropped.append(DroppedTCode(tcode=code, source_url=candidate.source_url,
                                                 reason="SAP page could not be retrieved for literal verification"))

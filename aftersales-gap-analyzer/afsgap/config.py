@@ -60,9 +60,16 @@ class Settings:
     local_page_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PAGE_CHARS", 4000))
     local_prompt_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PROMPT_CHARS", 40000))
 
+    # --- TLS on a managed network -----------------------------------------
+    # A corporate proxy re-signs HTTPS with its own CA. See afsgap/net.py.
+    ca_bundle: str = field(default_factory=lambda: os.getenv("AFSGAP_CA_BUNDLE", ""))
+    use_system_trust: bool = field(default_factory=lambda: _env_bool("AFSGAP_USE_SYSTEM_TRUST", True))
+    insecure_tls: bool = field(default_factory=lambda: _env_bool("AFSGAP_INSECURE_TLS", False))
+
     # --- search ------------------------------------------------------------
     search_results_per_query: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_RESULTS", 8))
     search_pause_seconds: float = field(default_factory=lambda: float(os.getenv("AFSGAP_SEARCH_PAUSE", "1.5")))
+    search_steered_domains: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_STEERED_DOMAINS", 2))
 
     # Drop an evidence quote that is not literally present in the page it cites.
     # Cheap insurance against a small local model paraphrasing a source into
@@ -130,6 +137,17 @@ class Settings:
     output_dir: Path = field(default_factory=lambda: Path(os.getenv("AFSGAP_OUTPUT_DIR", PROJECT_ROOT / "output")))
     resource_dir: Path = RESOURCE_DIR
 
+    @property
+    def search_priority_domains(self) -> list[str]:
+        """Allowlisted domains worth aiming a `site:` query at.
+
+        Public, well-indexed SAP properties only: steering at a login-walled
+        domain returns nothing and burns a query.
+        """
+        from .resources_loader import load_resource
+
+        return list(load_resource("sources").get("search_priority", []))
+
     def ensure_dirs(self) -> None:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -138,4 +156,11 @@ class Settings:
 def load_settings() -> Settings:
     settings = Settings()
     settings.ensure_dirs()
+    # Do this once, at startup, before any client is constructed: on a managed
+    # network the corporate CA lives in the OS trust store, and routing Python
+    # through it fixes every outbound call at once - including the ones made by
+    # third-party SDKs that never see our session object.
+    from .net import install_system_trust
+
+    install_system_trust(settings)
     return settings

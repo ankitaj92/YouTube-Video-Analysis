@@ -20,6 +20,7 @@ from typing import Any
 import requests
 
 from ..config import Settings
+from ..net import build_session, is_tls_trust_error
 from .storage_format import storage_to_text
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class ConfluenceClient:
                 "https://confluence.yourcompany.com for Data Center), or pass a process "
                 "YAML file instead of a process name."
             )
-        self.session = requests.Session()
+        self.session = build_session(settings)      # carries the corporate CA settings
         self.session.headers.update({"Accept": "application/json"})
         self._authenticate()
 
@@ -115,7 +116,16 @@ class ConfluenceClient:
 
     def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
-        response = self.session.get(url, params=params, timeout=self.settings.http_timeout)
+        try:
+            response = self.session.get(url, params=params, timeout=self.settings.http_timeout)
+        except requests.exceptions.SSLError as exc:
+            if is_tls_trust_error(exc):
+                raise ConfluenceUnavailableError(
+                    f"TLS verification failed for {url}. Your Confluence certificate is signed by "
+                    "a certificate authority Python does not trust yet - run "
+                    "`python -m afsgap doctor` for the fix."
+                ) from exc
+            raise
         if response.status_code in {401, 403}:
             raise ConfluenceUnavailableError(
                 f"Confluence rejected the credentials ({response.status_code}) for {url}. "

@@ -3,6 +3,7 @@
     python -m afsgap run "Defective Parts Return"              # reads Confluence
     python -m afsgap run "Defective Parts Return" --llm ollama # fully local
     python -m afsgap doctor                                    # check the local setup
+    python -m afsgap export-ca-bundle                          # corporate TLS proxy fix
     python -m afsgap run data/processes/defective_parts_return.yaml
     python -m afsgap run "Battery Pack Return" --new           # design it from scratch
     python -m afsgap confluence-search "Defective Parts Return"
@@ -58,6 +59,13 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="check that the configured backends are reachable")
     doctor.add_argument("--llm", choices=["claude", "ollama"], default=None)
     doctor.add_argument("--search", choices=["duckduckgo", "none"], default=None)
+
+    export_ca = sub.add_parser(
+        "export-ca-bundle",
+        help="write the machine's root certificates to a PEM file (fixes corporate TLS errors)",
+    )
+    export_ca.add_argument("--out", default=str(PROJECT_ROOT / "corp-ca-bundle.pem"),
+                           help="where to write the bundle")
 
     sub.add_parser("list-processes", help="list the local process definitions in data/processes")
 
@@ -116,6 +124,40 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
         print(f"  ANTHROPIC_API_KEY: {'set' if has_key else 'NOT SET'}")
         ok = ok and has_key
 
+    # TLS comes before the network checks: on a managed laptop it is the thing
+    # that breaks every one of them at once.
+    import os
+
+    from .net import TLS_HELP, build_session, is_tls_trust_error
+
+    print("TLS trust          : ", end="")
+    if settings.insecure_tls:
+        print("VERIFICATION DISABLED (AFSGAP_INSECURE_TLS) - do not leave this on")
+    elif settings.ca_bundle:
+        print(f"CA bundle {settings.ca_bundle}")
+    else:
+        try:
+            import truststore  # noqa: F401
+
+            print("operating system certificate store (truststore installed)")
+        except ImportError:
+            print("Python default (certifi) - no corporate CA")
+    proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+    if proxy:
+        print(f"  proxy            : {proxy}")
+
+    tls_broken = False
+    try:
+        build_session(settings).get("https://help.sap.com", timeout=15)
+        print("  reachability     : OK (https://help.sap.com)")
+    except Exception as exc:
+        ok = False
+        if is_tls_trust_error(exc):
+            tls_broken = True
+            print("  reachability     : FAILED - corporate certificate authority not trusted")
+        else:
+            print(f"  reachability     : FAILED - {str(exc)[:110]}")
+
     search_name = (search or settings.search_backend or "duckduckgo").lower()
     print(f"Search backend     : {search_name}")
     if backend == "ollama" and search_name != "none":
@@ -127,10 +169,12 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
                 print(f"  status           : OK ({len(results)} result(s), e.g. {results[0].url[:70]})")
             else:
                 ok = False
-                print("  status           : NO RESULTS - the engine may be rate-limiting or blocked")
+                print("  status           : NO RESULTS - "
+                      + ("blocked by the TLS problem above" if tls_broken
+                         else "the engine may be rate-limiting; raise AFSGAP_SEARCH_PAUSE and retry"))
         except Exception as exc:
             ok = False
-            print(f"  status           : FAILED - {exc}")
+            print(f"  status           : FAILED - {str(exc)[:110]}")
 
     print("Confluence         : " + (settings.confluence_base_url or "not configured (runs will be greenfield)"))
     if settings.confluence_base_url:
@@ -139,6 +183,9 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
               f"{' + token' if settings.confluence_api_token else ' (NO TOKEN)'}")
     print()
     print("Result             : " + ("ready" if ok else "not ready - fix the FAILED lines above"))
+    if tls_broken:
+        print()
+        print(TLS_HELP)
     return 0 if ok else 1
 
 
@@ -164,6 +211,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     settings = load_settings()
+
+    if args.command == "export-ca-bundle":
+        from .net import export_ca_bundle
+
+        try:
+            path, added = export_ca_bundle(Path(args.out))
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 3
+        print(f"Wrote {path}")
+        print(f"  {added} certificate(s) from the machine's certificate store, plus the defaults.")
+        print()
+        print("Add this line to your .env, then re-run `python -m afsgap doctor`:")
+        print(f"  AFSGAP_CA_BUNDLE={path}")
+        return 0
 
     if args.command == "doctor":
         return _doctor(settings, args.llm, args.search)

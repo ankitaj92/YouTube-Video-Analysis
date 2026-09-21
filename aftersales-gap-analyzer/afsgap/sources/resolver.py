@@ -80,6 +80,7 @@ class ProcessResolver:
     # ------------------------------------------------------------------
     def _from_yaml(self, path: Path, report: ValidationReport) -> ResolvedProcess:
         process = load_current_process(path, self.tolerance, report)
+        self.tolerance.check_process_name(process.process_name)
         provenance = ProcessProvenance(source="yaml", reference=str(path), searched_for=process.process_name)
         return ResolvedProcess(
             mode="gap", provenance=provenance, process=process,

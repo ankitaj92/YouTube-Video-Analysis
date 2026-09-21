@@ -30,6 +30,10 @@ PROMPT_RULE = (
 )
 
 
+class ExcludedProcessError(RuntimeError):
+    """The requested process is itself an excluded topic."""
+
+
 class ToleranceFilter(PatternFilter):
     rule_name = "tolerance"
 
@@ -73,6 +77,28 @@ class ToleranceFilter(PatternFilter):
                 f"terms {terms} - segment removed post-generation."
             )
         return cleaned
+
+    def check_process_name(self, process_name: str) -> None:
+        """Refuse, up front, to analyse a process the exclusion list covers.
+
+        Without this the run does all the work and then produces an empty
+        document: every query, every source and every finding about the process
+        is stripped by the very filter that defines the programme's scope. A
+        clear refusal in one second beats a blank report in twenty minutes.
+        """
+        hits = self.matches(process_name)
+        if not hits:
+            return
+        terms = sorted({hit.lower() for hit in hits})
+        raise ExcludedProcessError(
+            f"'{process_name}' is itself an excluded topic (matched: {', '.join(terms)}).\n\n"
+            "This programme excludes tolerance topics end to end, so a run for this process "
+            "would strip its own research and produce an empty document.\n\n"
+            "If the exclusion is right, analyse a different process. If this process really is "
+            "in scope, remove the matching pattern from "
+            "afsgap/resources/tolerance_terms.yaml and re-run - the exclusion list is meant to "
+            "be edited, and `python -m afsgap check-filters \"<text>\"` shows the effect."
+        )
 
     def assert_clean(self, text: str, stage: str, report: ValidationReport) -> None:
         """Final gate over the rendered document."""

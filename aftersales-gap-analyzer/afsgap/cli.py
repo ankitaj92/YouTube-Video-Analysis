@@ -20,7 +20,7 @@ from pathlib import Path
 
 from .config import PROJECT_ROOT, load_settings
 from .filters.kpi import KpiFilter
-from .filters.tolerance import ToleranceFilter
+from .filters.tolerance import ExcludedProcessError, ToleranceFilter
 from .pipeline import Pipeline
 
 DEFAULT_FIXTURES = str(PROJECT_ROOT / "tests" / "fixtures")
@@ -235,8 +235,14 @@ def _doctor(settings, llm: str | None, search: str | None, bench: bool = False) 
             ok = False
             print("  none of the search backends returned anything; see docs/CORPORATE_NETWORK.md")
 
-    print("Confluence         : " + (settings.confluence_base_url or "not configured (runs will be greenfield)"))
-    if settings.confluence_base_url:
+    from .sources.confluence import normalise_base_url
+
+    configured = settings.confluence_base_url
+    effective = normalise_base_url(configured)
+    print("Confluence         : " + (effective or "not configured (runs will be greenfield)"))
+    if effective:
+        if effective != configured.rstrip("/"):
+            print(f"  note             : corrected from {configured} - Cloud serves the API under /wiki")
         print(f"  auth             : {settings.confluence_auth}"
               f"{' + email' if settings.confluence_email else ''}"
               f"{' + token' if settings.confluence_api_token else ' (NO TOKEN)'}")
@@ -259,6 +265,10 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)-7s %(name)s: %(message)s",
     )
+    # The HTTP client inside the search library logs every provider request at
+    # INFO, which buries our own output under dozens of lines per query.
+    for noisy in ("primp", "ddgs", "urllib3", "httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.DEBUG if args.verbose else logging.WARNING)
 
     if args.command == "list-processes":
         for path in sorted((PROJECT_ROOT / "data" / "processes").glob("*.yaml")):
@@ -334,6 +344,9 @@ def main(argv: list[str] | None = None) -> int:
             require_existing=args.require_existing,
             confluence=_confluence_client(args, settings),
         )
+    except ExcludedProcessError as exc:
+        print(f"\nThis process is out of scope.\n\n{exc}\n", file=sys.stderr)
+        return 4
     except LookupError as exc:
         print(f"Nothing to analyse: {exc}", file=sys.stderr)
         print("Re-run without --require-existing to design the process from scratch.", file=sys.stderr)

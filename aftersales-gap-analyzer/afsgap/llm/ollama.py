@@ -126,6 +126,15 @@ class OllamaClient:
         transcript.stop_reason = "end_turn"
         return transcript
 
+    @property
+    def evidence_char_budget(self) -> int:
+        """How much retrieved material a research stage should hand over.
+
+        Researchers read this so the evidence arrives already sized for the
+        local context, rather than being cut to fit afterwards.
+        """
+        return int(self.settings.local_prompt_chars * 0.7)
+
     # ------------------------------------------------------------------
     # extract: one constrained-JSON call
     # ------------------------------------------------------------------
@@ -133,9 +142,18 @@ class OllamaClient:
         schema_json = flatten_schema(schema.model_json_schema())
         budget = self.settings.local_prompt_chars
         if len(prompt) > budget:
+            # Keep both ends: the start carries the task and the evidence, the
+            # end carries the instruction saying what to produce. Cutting the
+            # tail - the obvious implementation - silently removes the ask.
             logger.info("Trimming the extraction prompt from %d to %d characters for the local model.",
                         len(prompt), budget)
-            prompt = prompt[:budget] + "\n\n[content truncated to fit the local model's context]"
+            head = int(budget * 0.8)
+            tail = budget - head
+            prompt = (
+                prompt[:head]
+                + "\n\n[... middle of the retrieved material omitted to fit the local context ...]\n\n"
+                + prompt[-tail:]
+            )
 
         messages: list[dict[str, str]] = [
             {"role": "system", "content": system + self._compact_rule()},
@@ -277,16 +295,26 @@ class OllamaClient:
         chunks: list[str] = []
         tokens = 0
         last_report = started
+        prompt_chars = sum(len(message.get("content", "")) for message in messages)
+        logger.info(
+            "  reading a %d character prompt; the first token can take a while on CPU...",
+            prompt_chars,
+        )
 
         try:
+            # The read timeout covers the wait for the first token, which
+            # includes prompt processing. Once tokens flow, gaps are tiny.
             with requests.post(
                 f"{self.host}/api/chat",
                 json=payload,
                 stream=True,
-                timeout=(10, self.settings.ollama_chunk_timeout),
+                timeout=(10, max(self.settings.ollama_first_token_timeout,
+                                 self.settings.ollama_chunk_timeout)),
             ) as response:
                 response.raise_for_status()
                 for piece in self._iter_content(response):
+                    if not chunks:
+                        logger.info("  first token after %.0fs; generating...", time.monotonic() - started)
                     chunks.append(piece)
                     tokens += 1
                     now = time.monotonic()
@@ -302,10 +330,20 @@ class OllamaClient:
                             "machine can sustain, or use a smaller model."
                         )
         except requests.Timeout as exc:
+            waited = self.settings.ollama_first_token_timeout
+            if chunks:
+                raise OllamaUnavailableError(
+                    f"Ollama stopped mid-answer after producing {tokens} tokens. The machine may "
+                    "be under memory pressure; try a smaller model."
+                ) from exc
             raise OllamaUnavailableError(
-                f"Ollama produced nothing for {self.settings.ollama_chunk_timeout}s "
-                f"(AFSGAP_OLLAMA_CHUNK_TIMEOUT). The model is likely still loading, or the machine "
-                "is out of memory. Try a smaller model, or raise that value."
+                f"Ollama produced no output within {waited}s while reading a "
+                f"{prompt_chars} character prompt (AFSGAP_OLLAMA_FIRST_TOKEN_TIMEOUT).\n"
+                "Reading the prompt is the slow part on a CPU. Either give it less to read:\n"
+                "    AFSGAP_LOCAL_PROMPT_CHARS=6000\n"
+                "    AFSGAP_LOCAL_MAX_PAGES=2\n"
+                "or use a smaller model (qwen2.5:3b, llama3.2:3b).\n"
+                "`python -m afsgap doctor --bench` measures both speeds and recommends values."
             ) from exc
         except requests.RequestException as exc:
             raise OllamaUnavailableError(f"Ollama request failed: {exc}") from exc

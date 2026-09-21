@@ -121,7 +121,25 @@ def test_long_prompts_are_trimmed_not_dropped(local):
     settings.local_prompt_chars = 500
     client.extract(system="s", prompt="x" * 5000, schema=SapStandardProcess)
     sent = stub.chats[-1]["messages"][-1]["content"]
-    assert len(sent) < 1000 and "truncated" in sent
+    assert len(sent) < 1000 and "omitted" in sent
+
+
+def test_trimming_keeps_the_instruction_at_the_end(local):
+    """Cutting the tail removes the ask - the bug that made a stage produce
+    evidence with no instruction telling the model what to do with it."""
+    stub, settings, _, client = local
+    settings.local_prompt_chars = 600
+    prompt = "EVIDENCE " + ("x" * 4000) + "\nProduce the structured SAP standard record."
+    client.extract(system="s", prompt=prompt, schema=SapStandardProcess)
+    sent = stub.chats[-1]["messages"][-1]["content"]
+    assert sent.startswith("EVIDENCE"), "the start of the prompt must survive"
+    assert sent.rstrip().endswith("Produce the structured SAP standard record."), \
+        "the closing instruction must survive"
+
+
+def test_evidence_budget_is_published_for_researchers(local):
+    _, settings, _, client = local
+    assert 0 < client.evidence_char_budget < settings.local_prompt_chars
 
 
 # -- end to end -------------------------------------------------------------

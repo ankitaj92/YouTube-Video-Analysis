@@ -142,7 +142,16 @@ class DuckDuckGoBackend:
     def _via_package(self, query: str, max_results: int) -> list[SearchResult]:
         results: list[SearchResult] = []
         with self._ddgs(timeout=self.timeout, verify=self.verify) as client:
-            for item in client.text(query, max_results=max_results, safesearch="moderate"):
+            # ddgs fans out across many providers by default (Google, Brave,
+            # Yahoo, Wikipedia, ...). On a corporate IP that earns 429s within a
+            # few queries and buries the log, so pin it to the engines that
+            # actually serve this use case.
+            for item in client.text(
+                query,
+                max_results=max_results,
+                safesearch="moderate",
+                backend=self.settings.ddgs_backends,
+            ):
                 url = item.get("href") or item.get("url") or item.get("link") or ""
                 results.append(
                     SearchResult(

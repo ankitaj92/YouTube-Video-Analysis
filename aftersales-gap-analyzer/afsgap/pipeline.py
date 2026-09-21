@@ -80,6 +80,12 @@ class Pipeline:
         """
         report = ValidationReport()
 
+        # Check this before touching Confluence, search or the model: a process
+        # whose own name is an excluded topic can only produce an empty
+        # document, and finding that out after twenty minutes helps nobody.
+        self.tolerance.check_process_name(Path(str(target)).stem if str(target).endswith((".yaml", ".yml"))
+                                          else str(target))
+
         logger.info("Stage 1/5: resolving the process and pre-filtering its description")
         resolver = ProcessResolver(self.settings, self.client, self.tolerance, confluence)
         resolved: ResolvedProcess = resolver.resolve(

@@ -204,7 +204,11 @@ class IndustryResearcher:
             if citation.url in credible_urls or self.classifier.is_credible_industry(citation.url):
                 lines.append(f'- "{citation.cited_text}" -- {citation.url}')
         lines += ["", "## Peer-reviewed works (OpenAlex)", "", self._scholarly_block(scholarly)]
-        lines += ["", "## Research narrative", "", transcript.text]
+        budget = getattr(self.client, "evidence_char_budget", None)
+        narrative = transcript.text
+        if budget and len(narrative) > int(budget * 0.75):
+            narrative = narrative[: int(budget * 0.75)] + "\n[... further retrieved text omitted ...]"
+        lines += ["", "## Research narrative", "", narrative]
         return "\n".join(lines)
 
     def _collect_sources(self, transcript) -> list[Source]:

@@ -42,6 +42,22 @@ against the literal text of a public SAP page or not published at all. Section
 3.3 lists what was rejected and why, so "we found nothing" is distinguishable
 from "we did not look".
 
+## When the tool refuses a process
+
+If the process name is itself on the exclusion list - "Underdelivery",
+"Over-delivery", anything containing "tolerance" - the run stops in about a
+second with an explanation rather than producing a document.
+
+This is the exclusion doing its job, not a defect. Every query, source and
+finding about such a process would be stripped by the filter that defines the
+programme's scope, so the honest outcome is a refusal, not an empty report.
+
+Two valid responses: analyse a different process, or decide the exclusion is
+wrong for this case and remove the matching pattern from
+`afsgap/resources/tolerance_terms.yaml`. The exclusion list is meant to be
+edited by the programme, and `afsgap check-filters "<text>"` shows the effect of
+a change immediately.
+
 ## Known limitations - state these before someone else does
 
 * **Public sources only.** SAP material behind a customer login, and your own

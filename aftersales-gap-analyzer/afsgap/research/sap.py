@@ -138,7 +138,11 @@ class SapResearcher:
         )
 
         # Pre-LLM filtering of retrieved material, before it reaches extraction.
-        evidence = self.tolerance.scrub_input(transcript.evidence_block(), "sap_research.evidence", report)
+        evidence = self.tolerance.scrub_input(
+            transcript.evidence_block(max_chars=getattr(self.client, "evidence_char_budget", None)),
+            "sap_research.evidence",
+            report,
+        )
 
         sources = self._collect_sources(transcript)
         if not sources:

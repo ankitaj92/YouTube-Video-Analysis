@@ -20,6 +20,13 @@ AFSGAP_CONFLUENCE_AUTH=bearer
 Both use the v1 content API (`/rest/api/content/...`), which exists on Cloud and
 Data Center alike - the only differences are the base URL and the auth scheme.
 
+> **The `/wiki` trap.** Confluence Cloud serves its API under `/wiki`. If you set
+> the base URL to `https://yoursite.atlassian.net` without it, every call returns
+> **404** - which reads like "the API is gone" rather than "the path is short".
+> afsgap appends `/wiki` automatically for `*.atlassian.net` and `doctor` prints
+> the correction it made, but set it correctly in `.env` anyway. Data Center
+> serves the API at the root, so nothing is added there.
+
 Restrict the search to the spaces that actually hold process documentation:
 
 ```ini

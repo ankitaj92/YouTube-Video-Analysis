@@ -59,6 +59,13 @@ class Settings:
     # Responses stream, so this is a per-chunk read timeout, not a cap on the
     # whole call: a slow-but-alive model is never killed, a hung one still is.
     ollama_chunk_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_CHUNK_TIMEOUT", 180))
+    # Reading the prompt ("prefill") happens before the first token appears and
+    # is the slow part on a CPU: a few thousand tokens of input can take many
+    # minutes with nothing emitted. That wait is not a hang, so it gets its own,
+    # much longer allowance.
+    ollama_first_token_timeout: int = field(
+        default_factory=lambda: _env_int("AFSGAP_OLLAMA_FIRST_TOKEN_TIMEOUT", 900)
+    )
     # Overall guard rail for a single stage (0 disables it).
     ollama_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_TIMEOUT", 3600))
     ollama_num_ctx: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_NUM_CTX", 8192))
@@ -89,6 +96,9 @@ class Settings:
     search_results_per_query: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_RESULTS", 8))
     search_pause_seconds: float = field(default_factory=lambda: float(os.getenv("AFSGAP_SEARCH_PAUSE", "1.5")))
     search_steered_domains: int = field(default_factory=lambda: _env_int("AFSGAP_SEARCH_STEERED_DOMAINS", 2))
+    # Which engines ddgs may use. "auto" fans out across a dozen providers and
+    # collects rate limits; this keeps it to ones that answer reliably.
+    ddgs_backends: str = field(default_factory=lambda: os.getenv("AFSGAP_DDGS_BACKENDS", "duckduckgo,mojeek,brave"))
 
     # Drop an evidence quote that is not literally present in the page it cites.
     # Cheap insurance against a small local model paraphrasing a source into

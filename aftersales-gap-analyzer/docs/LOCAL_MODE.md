@@ -153,17 +153,26 @@ Three things drive it, in order:
    keeps it resident, and the model is preloaded before the first stage so that
    the load time does not look like a hang.
 
-Responses stream, so `AFSGAP_OLLAMA_CHUNK_TIMEOUT` (180s) is the time allowed
-between tokens, not for the whole call: a model that is slow but working is
-never killed, while one that has genuinely hung still is. Progress is logged
-every 30 seconds with a token count and rate, so you can see it working.
+Responses stream, so the timeouts describe two different waits:
+
+* `AFSGAP_OLLAMA_FIRST_TOKEN_TIMEOUT` (900s) covers **reading the prompt**.
+  Nothing is emitted during this phase, and on a CPU a few thousand tokens of
+  input can take many minutes. It is not a hang, and it is the wait that most
+  often ends a local run.
+* `AFSGAP_OLLAMA_CHUNK_TIMEOUT` (180s) covers the gap **between** tokens once
+  generation starts. Those gaps are small, so a breach here is a real stall.
+
+The log tells you which phase you are in - the prompt size when it starts
+reading, then "first token after Ns" when generation begins, then a token count
+and rate every 30 seconds.
 
 ## Tuning
 
 | Symptom | Setting |
 | --- | --- |
 | "generating for Ns without finishing" | the model is working, just slowly - run `doctor --bench` and apply its recommendation, or lower `AFSGAP_LOCAL_MAX_ITEMS` |
-| "produced nothing for Ns" | the model is still loading or the machine is out of RAM - try a smaller model, or raise `AFSGAP_OLLAMA_CHUNK_TIMEOUT` |
+| "produced no output within Ns while reading a N character prompt" | **the usual local-mode failure.** Reading the prompt happens before the first token and is the slow part on a CPU. Give it less to read (`AFSGAP_LOCAL_PROMPT_CHARS=6000`, `AFSGAP_LOCAL_MAX_PAGES=2`) or use a 3B model; raising `AFSGAP_OLLAMA_FIRST_TOKEN_TIMEOUT` only buys patience |
+| "stopped mid-answer after N tokens" | memory pressure - use a smaller model |
 | JSON cut off mid-structure | raise `AFSGAP_OLLAMA_NUM_PREDICT` |
 | Stages look truncated | raise `AFSGAP_OLLAMA_NUM_CTX` (and check the model supports it) |
 | Prompt trimming in the log | lower `AFSGAP_LOCAL_PAGE_CHARS` or `AFSGAP_LOCAL_MAX_PAGES` |

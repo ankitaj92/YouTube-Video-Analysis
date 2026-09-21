@@ -16,6 +16,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -56,6 +57,23 @@ class ConfluencePage:
         return "".join(parts) + ")"
 
 
+def normalise_base_url(raw: str) -> str:
+    """Fix the base URL mistake everyone makes with Confluence Cloud.
+
+    A Cloud site serves Confluence under ``/wiki``: the REST path is
+    ``https://site.atlassian.net/wiki/rest/api/...``. Given the site URL alone,
+    every call 404s - which looks like "the API is gone" rather than "the path
+    is short". Data Center serves it at the root, so only Cloud is adjusted.
+    """
+    base = (raw or "").strip().rstrip("/")
+    if not base:
+        return ""
+    host = urlparse(base if "//" in base else f"https://{base}").netloc.lower()
+    if host.endswith(".atlassian.net") and not base.rstrip("/").endswith("/wiki"):
+        return base + "/wiki"
+    return base
+
+
 def _tokens(text: str) -> set[str]:
     return {t for t in re.findall(r"[a-z0-9]+", text.lower()) if t not in STOPWORDS and len(t) > 2}
 
@@ -80,7 +98,7 @@ def title_similarity(process_name: str, title: str) -> float:
 class ConfluenceClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.base_url = (settings.confluence_base_url or "").rstrip("/")
+        self.base_url = normalise_base_url(settings.confluence_base_url or "")
         if not self.base_url:
             raise ConfluenceUnavailableError(
                 "AFSGAP_CONFLUENCE_BASE_URL is not set. Set it in .env (for example "
@@ -130,6 +148,14 @@ class ConfluenceClient:
             raise ConfluenceUnavailableError(
                 f"Confluence rejected the credentials ({response.status_code}) for {url}. "
                 "Check the token, the auth mode, and that the account can read the space."
+            )
+        if response.status_code == 404:
+            raise ConfluenceUnavailableError(
+                f"Confluence returned 404 for {url}.\n"
+                "The usual cause is the base URL. Confluence Cloud serves the API under /wiki:\n"
+                "  AFSGAP_CONFLUENCE_BASE_URL=https://yoursite.atlassian.net/wiki\n"
+                "Data Center serves it at the root (no /wiki). Check the value in .env, then "
+                "run `python -m afsgap doctor`."
             )
         response.raise_for_status()
         return response.json()

@@ -107,6 +107,13 @@ Search backend     : duckduckgo,mojeek,seeds
 
 Options, in order of effort:
 
+**0. Check it is not self-inflicted.** The search library can fan out across a
+dozen providers per query, which earns HTTP 429 (rate limited) within a few
+queries from one corporate IP and fills the log with provider requests. afsgap
+pins it to a few engines (`AFSGAP_DDGS_BACKENDS`) and silences the library's
+per-request logging. If you see hundreds of `INFO primp:` lines or repeated
+429s, you are on an older copy - update it.
+
 **1. Chain a second engine.** Corporate filters usually block the big engines by
 name. Mojeek has its own index and is often reachable:
 

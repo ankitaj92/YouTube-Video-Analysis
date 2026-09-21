@@ -1,0 +1,37 @@
+# Seed sources - used by the `seeds` search backend.
+#
+# WHEN TO USE THIS
+# Your network blocks search engines but lets you reach the sites themselves.
+# You find the pages in your browser, paste them here, and afsgap does the rest:
+# fetch, filter, extract, and verify T-codes against the literal page text.
+#
+# WHAT TO PUT HERE
+# Public pages only, on domains that are already on the allowlist in
+# afsgap/resources/sources.yaml - SAP facts must come from an official SAP
+# domain, industry practice from a credible publisher. Anything else is filtered
+# out after fetching, so adding it just wastes a fetch.
+#
+# HOW MATCHING WORKS
+# `topics` are keywords matched against the query the pipeline builds. A source
+# with no topics is treated as a general starting point and is always eligible,
+# ranked below sources that match. Nothing here is guessed for you: a URL that
+# cannot be fetched produces nothing, and every URL used appears in the
+# document's evidence register.
+#
+# WORKED EXAMPLE (replace these - they are illustrative, not verified)
+#
+# sources:
+#   - url: https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/<the page you opened>
+#     title: Returns Processing
+#     topics: [returns, defective, parts, credit memo]
+#   - url: https://help.sap.com/docs/SAP_EWM/<the page you opened>
+#     title: Inbound processing of returns
+#     topics: [warehouse, inbound, inspection, putaway]
+#   - url: https://community.sap.com/<a blog post you read>
+#     title: Advanced returns management in S/4HANA
+#     topics: [returns, advanced, s4hana]
+#   - url: https://www.apqc.org/<a framework page>
+#     title: Returns process framework
+#     topics: [industry, practice, returns, benchmark]
+
+sources: []

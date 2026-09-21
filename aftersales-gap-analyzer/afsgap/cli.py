@@ -43,8 +43,8 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="fail instead of falling back to greenfield design when nothing is found")
     run.add_argument("--llm", choices=["claude", "ollama"], default=None,
                      help="generation backend (default: AFSGAP_LLM, else claude)")
-    run.add_argument("--search", choices=["duckduckgo", "none"], default=None,
-                     help="search backend for local runs (default: AFSGAP_SEARCH, else duckduckgo)")
+    run.add_argument("--search", default=None,
+                     help="search backend or chain, e.g. duckduckgo,mojeek,seeds (default: AFSGAP_SEARCH)")
     run.add_argument("--offline", action="store_true", help="use fixtures instead of live research")
     run.add_argument("--fixtures", default=DEFAULT_FIXTURES, help="fixture directory for --offline")
     run.add_argument("--no-cache", action="store_true", help="ignore cached research stages")
@@ -58,7 +58,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="check that the configured backends are reachable")
     doctor.add_argument("--llm", choices=["claude", "ollama"], default=None)
-    doctor.add_argument("--search", choices=["duckduckgo", "none"], default=None)
+    doctor.add_argument("--search", default=None,
+                        help="search backend or comma-separated chain to test")
+    doctor.add_argument("--bench", action="store_true",
+                        help="measure local model speed and recommend settings")
 
     export_ca = sub.add_parser(
         "export-ca-bundle",
@@ -98,7 +101,50 @@ def _build_llm(settings, llm: str | None, search: str | None):
     return ClaudeClient(settings)
 
 
-def _doctor(settings, llm: str | None, search: str | None) -> int:
+def _bench(settings, client) -> None:
+    """Measure the local model and translate the result into settings."""
+    from .llm.ollama import OllamaUnavailableError
+
+    print()
+    print("Benchmarking the local model (this takes a minute)...")
+    try:
+        result = client.benchmark()
+    except OllamaUnavailableError as exc:
+        print(f"  FAILED - {exc}")
+        return
+    except Exception as exc:
+        print(f"  FAILED - {exc}")
+        return
+
+    rate = result["tokens_per_second"]
+    print(f"  model load       : {result['load_seconds']:.0f}s")
+    print(f"  generation       : {rate:.1f} tokens/second")
+
+    # A research or analysis stage generates roughly 800-2000 tokens of JSON.
+    for label, tokens in (("a research stage", 1200), ("the gap analysis", 2000)):
+        print(f"  estimated {label:17}: ~{tokens / max(rate, 0.1) / 60:.0f} min")
+
+    print()
+    if rate >= 15:
+        print("  Verdict: comfortable. You can raise AFSGAP_LOCAL_MAX_PAGES to 8 and")
+        print("           AFSGAP_LOCAL_PROMPT_CHARS to 24000 for richer research,")
+        print("           and a 14B model would likely still be practical.")
+    elif rate >= 6:
+        print("  Verdict: workable at the current defaults. A full run is roughly")
+        print("           15-30 minutes. Leave the stage cache on and iterate.")
+    elif rate >= 2:
+        print("  Verdict: slow. Reduce the work per stage:")
+        print("             AFSGAP_LOCAL_MAX_PAGES=3")
+        print("             AFSGAP_LOCAL_PROMPT_CHARS=8000")
+        print("             AFSGAP_LOCAL_MAX_ITEMS=4")
+        print("           Or move to a smaller model (qwen2.5:3b, llama3.2:3b).")
+    else:
+        print("  Verdict: too slow for this workload. A single stage would take over")
+        print("           an hour. Use a 3B model, or run the hosted backend for the")
+        print("           analysis and keep local mode for testing the pipeline.")
+
+
+def _doctor(settings, llm: str | None, search: str | None, bench: bool = False) -> int:
     """Check every moving part of a local setup before a real run."""
     ok = True
     backend = (llm or settings.llm_backend or "claude").lower()
@@ -114,9 +160,13 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
         try:
             client.check()
             print("  status           : OK")
+            print(f"  keep alive       : {settings.ollama_keep_alive}")
+            print(f"  input budget     : {settings.local_max_pages} pages x "
+                  f"{settings.local_page_chars} chars, prompt cap {settings.local_prompt_chars}")
         except OllamaUnavailableError as exc:
             ok = False
             print(f"  status           : FAILED - {exc}")
+            bench = False
     else:
         import os
 
@@ -158,23 +208,32 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
         else:
             print(f"  reachability     : FAILED - {str(exc)[:110]}")
 
+    # Test each link of the search chain separately: knowing *which* engine is
+    # blocked is the difference between a config change and a support ticket.
     search_name = (search or settings.search_backend or "duckduckgo").lower()
     print(f"Search backend     : {search_name}")
-    if backend == "ollama" and search_name != "none":
-        from .search.base import build_backend
+    if search_name != "none":
+        from .search.base import _build_one
 
-        try:
-            results = build_backend(settings, search_name).search("SAP returns process", max_results=3)
+        any_worked = False
+        for part in [p.strip() for p in search_name.split(",") if p.strip()]:
+            try:
+                one = _build_one(settings, part)
+                results = one.search("SAP returns process flow", max_results=3)
+            except Exception as exc:
+                print(f"  {part:<16} : FAILED - {str(exc)[:80]}")
+                continue
             if results:
-                print(f"  status           : OK ({len(results)} result(s), e.g. {results[0].url[:70]})")
+                any_worked = True
+                print(f"  {part:<16} : OK ({len(results)} result(s), e.g. {results[0].url[:60]})")
+            elif part == "seeds":
+                print(f"  {part:<16} : no seed URLs yet - add them to {settings.seed_sources_path}")
             else:
-                ok = False
-                print("  status           : NO RESULTS - "
-                      + ("blocked by the TLS problem above" if tls_broken
-                         else "the engine may be rate-limiting; raise AFSGAP_SEARCH_PAUSE and retry"))
-        except Exception as exc:
+                print(f"  {part:<16} : no results - "
+                      + ("blocked by the TLS problem above" if tls_broken else "blocked or rate-limited"))
+        if not any_worked:
             ok = False
-            print(f"  status           : FAILED - {str(exc)[:110]}")
+            print("  none of the search backends returned anything; see docs/CORPORATE_NETWORK.md")
 
     print("Confluence         : " + (settings.confluence_base_url or "not configured (runs will be greenfield)"))
     if settings.confluence_base_url:
@@ -186,6 +245,11 @@ def _doctor(settings, llm: str | None, search: str | None) -> int:
     if tls_broken:
         print()
         print(TLS_HELP)
+    if bench and backend == "ollama":
+        from .llm.ollama import OllamaClient
+        from .search.base import build_backend
+
+        _bench(settings, OllamaClient(settings, build_backend(settings, "none")))
     return 0 if ok else 1
 
 
@@ -228,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "doctor":
-        return _doctor(settings, args.llm, args.search)
+        return _doctor(settings, args.llm, args.search, bench=args.bench)
 
     if args.command == "confluence-search":
         from .sources.confluence import ConfluenceClient, ConfluenceUnavailableError

@@ -70,10 +70,11 @@ def test_unreachable_host_is_explained(tmp_path, fixtures_dir):
 def test_extract_sends_the_schema_as_format(local):
     stub, _, _, client = local
     client.extract(system="s", prompt="p", schema=SapStandardProcess)
-    request = stub.requests[-1]
-    assert request["stream"] is False
+    request = stub.chats[-1]
+    assert request["stream"] is True, "responses must stream so slow models are not killed"
     assert "standard_process_flow" in request["format"]["properties"]
     assert request["options"]["temperature"] == 0
+    assert request["keep_alive"], "the model should stay resident between stages"
 
 
 def test_invalid_json_is_retried_then_succeeds(tmp_path, fixtures_dir):
@@ -82,7 +83,7 @@ def test_invalid_json_is_retried_then_succeeds(tmp_path, fixtures_dir):
         client = OllamaClient(settings, FakeSearchBackend(fixtures_dir))
         result = client.extract(system="s", prompt="p", schema=SapStandardProcess)
         assert result.process_name
-        assert len(stub.requests) == 2, "the first bad reply should have been retried"
+        assert len(stub.chats) == 2, "the first bad reply should have been retried"
 
 
 def test_persistent_bad_json_fails_loudly(tmp_path, fixtures_dir):
@@ -101,7 +102,7 @@ def test_research_retrieves_without_calling_the_model(local):
         queries=["SAP returns process flow", "SAP EWM returns"],
         allowed_domains=["help.sap.com"],
     )
-    assert not stub.requests, "retrieval must not spend a model call"
+    assert not stub.chats, "retrieval must not spend a model call"
     assert transcript.hits and transcript.pages
     assert all("help.sap.com" in url for url in transcript.pages)
     assert "SOURCE:" in transcript.text
@@ -119,7 +120,7 @@ def test_long_prompts_are_trimmed_not_dropped(local):
     stub, settings, _, client = local
     settings.local_prompt_chars = 500
     client.extract(system="s", prompt="x" * 5000, schema=SapStandardProcess)
-    sent = stub.requests[-1]["messages"][-1]["content"]
+    sent = stub.chats[-1]["messages"][-1]["content"]
     assert len(sent) < 1000 and "truncated" in sent
 
 
@@ -190,3 +191,58 @@ def test_site_operators_steer_but_do_not_replace_filtering(monkeypatch):
 
 def test_null_backend_returns_nothing():
     assert build_backend(Settings(), "none").search("anything") == []
+
+
+# -- slow-model handling ----------------------------------------------------
+def test_responses_stream_so_slow_models_are_not_killed(local):
+    """A wall-clock timeout on a non-streaming call is what caused the original
+    900s failure; the read timeout must apply between chunks instead."""
+    stub, settings, _, client = local
+    client.extract(system="s", prompt="p", schema=SapStandardProcess)
+    assert stub.chats[-1]["stream"] is True
+    assert settings.ollama_chunk_timeout < settings.ollama_timeout
+
+
+def test_model_is_preloaded_once_not_per_stage(local):
+    stub, _, _, client = local
+    for _ in range(3):
+        client.extract(system="s", prompt="p", schema=SapStandardProcess)
+    preloads = [r for r in stub.requests if "prompt" in r and "messages" not in r]
+    assert len(preloads) == 1, "reloading the model each stage can cost more than generation"
+
+
+def test_compact_instruction_limits_output_length(local):
+    stub, settings, _, client = local
+    client.extract(system="SYSTEM", prompt="p", schema=SapStandardProcess)
+    system = stub.chats[-1]["messages"][0]["content"]
+    assert "LENGTH BUDGET" in system
+    assert str(settings.local_max_items) in system
+
+
+def test_compact_instruction_can_be_turned_off(local):
+    stub, settings, _, client = local
+    settings.local_compact = False
+    client.extract(system="SYSTEM", prompt="p", schema=SapStandardProcess)
+    assert "LENGTH BUDGET" not in stub.chats[-1]["messages"][0]["content"]
+
+
+def test_generation_is_capped(local):
+    stub, settings, _, client = local
+    client.extract(system="s", prompt="p", schema=SapStandardProcess)
+    assert stub.chats[-1]["options"]["num_predict"] == settings.ollama_num_predict
+
+
+def test_benchmark_reports_a_rate(local):
+    _, _, _, client = local
+    result = client.benchmark()
+    assert result["tokens"] > 0
+    assert result["tokens_per_second"] > 0
+    assert "load_seconds" in result
+
+
+def test_defaults_fit_a_laptop(local):
+    """The original defaults asked a CPU-bound model for ~10k tokens of input."""
+    _, settings, _, _ = local
+    assert settings.local_prompt_chars <= 16000
+    assert settings.local_max_pages * settings.local_page_chars <= 16000
+    assert settings.ollama_num_ctx <= 8192

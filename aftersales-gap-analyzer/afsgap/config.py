@@ -44,21 +44,40 @@ class Settings:
     # claude = hosted Anthropic API (server-side web search)
     # ollama = fully local: Ollama for generation, a search backend for retrieval
     llm_backend: str = field(default_factory=lambda: os.getenv("AFSGAP_LLM", "claude"))
-    search_backend: str = field(default_factory=lambda: os.getenv("AFSGAP_SEARCH", "duckduckgo"))
+    # One backend, or a fallback chain: "duckduckgo,mojeek,seeds".
+    search_backend: str = field(default_factory=lambda: os.getenv("AFSGAP_SEARCH", "duckduckgo,mojeek,seeds"))
+    searxng_url: str = field(default_factory=lambda: os.getenv("AFSGAP_SEARXNG_URL", ""))
+    seed_sources_path: str = field(
+        default_factory=lambda: os.getenv("AFSGAP_SEED_SOURCES", str(PROJECT_ROOT / "data" / "seed_sources.yaml"))
+    )
 
     # --- local (Ollama) ----------------------------------------------------
     ollama_host: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_HOST", "http://localhost:11434"))
-    ollama_model: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_MODEL", "qwen2.5:14b"))
-    ollama_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_TIMEOUT", 900))
-    ollama_num_ctx: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_NUM_CTX", 16384))
+    # 7B is the realistic default on a laptop without a GPU. 14B is better if
+    # the hardware can carry it - `afsgap doctor --bench` measures which.
+    ollama_model: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_MODEL", "qwen2.5:7b"))
+    # Responses stream, so this is a per-chunk read timeout, not a cap on the
+    # whole call: a slow-but-alive model is never killed, a hung one still is.
+    ollama_chunk_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_CHUNK_TIMEOUT", 180))
+    # Overall guard rail for a single stage (0 disables it).
+    ollama_timeout: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_TIMEOUT", 3600))
+    ollama_num_ctx: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_NUM_CTX", 8192))
+    ollama_num_predict: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_NUM_PREDICT", 6144))
     ollama_max_attempts: int = field(default_factory=lambda: _env_int("AFSGAP_OLLAMA_MAX_ATTEMPTS", 3))
     ollama_temperature: float = field(default_factory=lambda: float(os.getenv("AFSGAP_OLLAMA_TEMPERATURE", "0")))
+    # Keep the model resident between stages; reloading it each time can cost
+    # more than the generation itself.
+    ollama_keep_alive: str = field(default_factory=lambda: os.getenv("AFSGAP_OLLAMA_KEEP_ALIVE", "30m"))
+    # Ask the local model for fewer, shorter items. Output length is the single
+    # biggest driver of how long a stage takes.
+    local_compact: bool = field(default_factory=lambda: _env_bool("AFSGAP_LOCAL_COMPACT", True))
+    local_max_items: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_MAX_ITEMS", 6))
 
     # How much retrieved material a local run feeds the model. Local context
     # windows are small; these caps keep a stage inside them.
-    local_max_pages: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_MAX_PAGES", 8))
-    local_page_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PAGE_CHARS", 4000))
-    local_prompt_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PROMPT_CHARS", 40000))
+    local_max_pages: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_MAX_PAGES", 4))
+    local_page_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PAGE_CHARS", 2500))
+    local_prompt_chars: int = field(default_factory=lambda: _env_int("AFSGAP_LOCAL_PROMPT_CHARS", 12000))
 
     # --- TLS on a managed network -----------------------------------------
     # A corporate proxy re-signs HTTPS with its own CA. See afsgap/net.py.

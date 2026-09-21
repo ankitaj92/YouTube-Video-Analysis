@@ -28,7 +28,8 @@ class OllamaStub:
         self.fixtures_dir = Path(fixtures_dir)
         self.model = model
         self.bad_responses = bad_responses     # emit N invalid replies first, to exercise retries
-        self.requests: list[dict] = []
+        self.requests: list[dict] = []         # every request, including preloads
+        self.chats: list[dict] = []            # /api/chat only
         self._server = HTTPServer(("127.0.0.1", 0), self._handler())
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
@@ -74,18 +75,47 @@ class OllamaStub:
                 else:
                     self._send({"error": "not found"}, 404)
 
+            def _send_stream(self, content: str, model: str):
+                """Emit Ollama's newline-delimited JSON stream, in small pieces."""
+                self.send_response(200)
+                self.send_header("Content-Type", "application/x-ndjson")
+                self.end_headers()
+                step = max(len(content) // 8, 1)
+                for start in range(0, len(content), step):
+                    event = {
+                        "model": model,
+                        "message": {"role": "assistant", "content": content[start:start + step]},
+                        "done": False,
+                    }
+                    self.wfile.write((json.dumps(event) + "\n").encode())
+                    self.wfile.flush()
+                self.wfile.write((json.dumps({"model": model, "done": True}) + "\n").encode())
+                self.wfile.flush()
+
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
                 request = json.loads(self.rfile.read(length) or b"{}")
                 stub.requests.append(request)
+
+                if self.path.startswith("/api/generate"):
+                    # model preload
+                    self._send({"model": request.get("model"), "done": True})
+                    return
+
                 if self.path.startswith("/api/chat"):
+                    stub.chats.append(request)
                     if stub.bad_responses > 0:
                         stub.bad_responses -= 1
                         content = "here you go: {not valid json"
                     else:
                         content = stub._payload_for(request.get("format") or {})
-                    self._send({"model": request.get("model"), "message": {"role": "assistant", "content": content}})
-                else:
-                    self._send({"error": "not found"}, 404)
+                    if request.get("stream"):
+                        self._send_stream(content, request.get("model", ""))
+                    else:
+                        self._send({"model": request.get("model"),
+                                    "message": {"role": "assistant", "content": content}})
+                    return
+
+                self._send({"error": "not found"}, 404)
 
         return Handler

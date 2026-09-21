@@ -92,17 +92,64 @@ Required` rather than a certificate error - a different problem with a different
 owner. Include the credentials in the URL
 (`http://user:pass@proxy:8080`) only if your policy allows it.
 
-## Sites your network may block outright
+## When search is blocked but the sites are not
 
-Search engines and AI-related domains are sometimes blocked by policy rather
-than by TLS. If `doctor` shows TLS as OK but search returns nothing:
+This is the common case in a corporate estate: the web filter blocks search
+engines by category, while `help.sap.com` is allowlisted because people need it
+for work. `doctor` tests each search backend separately, so you can see which:
 
-- Try `--search none` with `AFSGAP_OPENALEX_ENABLED=false` to confirm the rest of
-  the pipeline works; the run completes and states that research found nothing.
-- Ask whether `duckduckgo.com` is allowlisted. It often is not, while
-  `help.sap.com` is.
-- The stage cache means nothing already retrieved is lost while you sort this
-  out - delete individual files under `.cache/stages/` to redo just one stage.
+```
+Search backend     : duckduckgo,mojeek,seeds
+  duckduckgo       : no results - blocked or rate-limited
+  mojeek           : OK (3 result(s), e.g. https://help.sap.com/docs/...)
+  seeds            : no seed URLs yet - add them to data/seed_sources.yaml
+```
+
+Options, in order of effort:
+
+**1. Chain a second engine.** Corporate filters usually block the big engines by
+name. Mojeek has its own index and is often reachable:
+
+```ini
+AFSGAP_SEARCH=duckduckgo,mojeek,seeds
+```
+
+The chain tries each in order and uses the first that returns anything.
+
+**2. Use a SearXNG instance.** If your organisation runs one, or you run one in
+Docker locally, it is the most reliable option - inside the perimeter, no API
+key, JSON out:
+
+```ini
+AFSGAP_SEARCH=searxng,seeds
+AFSGAP_SEARXNG_URL=http://localhost:8080
+```
+
+**3. Supply the URLs yourself (`seeds`).** No search engine involved. You find
+the pages in your browser - which works on your laptop even when Python's search
+does not - and paste them into `data/seed_sources.yaml`:
+
+```yaml
+sources:
+  - url: https://help.sap.com/docs/<the page you opened>
+    title: Returns Processing
+    topics: [returns, defective, parts]
+```
+
+The pipeline then fetches, filters and extracts from them exactly as it would
+from search results, and T-codes are still verified against the literal page
+text. Seeds appear in the evidence register like any other source.
+
+Ten well-chosen pages produce a better document than fifty search results, so
+this is not a degraded mode - it is just more work for you. The file ships empty
+on purpose: nothing is guessed on your behalf.
+
+**4. Confirm the rest works.** `--search none` with
+`AFSGAP_OPENALEX_ENABLED=false` runs the pipeline with no outbound search at
+all; it completes and states plainly that research returned nothing.
+
+The stage cache means nothing already retrieved is lost while you work through
+this - delete individual files under `.cache/stages/` to redo just one stage.
 
 ## What none of this changes
 

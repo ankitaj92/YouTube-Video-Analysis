@@ -21,13 +21,16 @@ interception breaks every outbound call and has its own guide,
 ollama serve                   # usually already running as a service
 
 # 2. pull a model
-ollama pull qwen2.5:14b
+ollama pull qwen2.5:7b
 
 # 3. install the Python side
 pip install -r requirements.txt
 
 # 4. check everything is reachable before spending a run
 python -m afsgap doctor --llm ollama
+
+# 5. see what this machine can actually sustain
+python -m afsgap doctor --llm ollama --bench
 ```
 
 `doctor` verifies the Ollama host, that the model is actually pulled, that the
@@ -46,7 +49,7 @@ Or make it the default in `.env`:
 ```ini
 AFSGAP_LLM=ollama
 AFSGAP_SEARCH=duckduckgo
-AFSGAP_OLLAMA_MODEL=qwen2.5:14b
+AFSGAP_OLLAMA_MODEL=qwen2.5:7b
 ```
 
 ## How local mode differs internally
@@ -80,10 +83,14 @@ fetched SAP page and looks for the literal code.
 
 | Model | Verdict |
 | --- | --- |
-| `qwen2.5:14b` | Good default. Handles the nested JSON schemas reliably. |
-| `llama3.1:8b`, `mistral-nemo` | Usable. Expect occasional schema retries; the client retries automatically. |
-| 7B and below | Struggles with the deeper schemas (gap analysis, blueprint). Fine for a smoke test, not for output you will show anyone. |
-| `qwen2.5:32b`, `llama3.3:70b` | Better analysis if you have the RAM and the patience. |
+| `qwen2.5:7b` | The default. Realistic on a laptop without a GPU, and good enough at constrained JSON. |
+| `qwen2.5:14b` | Better analysis. Worth it only if `doctor --bench` shows comfortable throughput. |
+| `qwen2.5:3b`, `llama3.2:3b` | When 7B is too slow. Expect more schema retries and blunter analysis. |
+| `llama3.1:8b`, `mistral-nemo` | Fine alternatives at the 7-8B tier. |
+| `qwen2.5:32b` and up | Only with a real GPU. |
+
+Start at the default, run `doctor --bench`, and move up or down from there
+rather than guessing.
 
 Structured output is enforced by handing Ollama the JSON schema in `format`, so
 the model is grammar-constrained rather than asked politely for JSON. If the
@@ -111,11 +118,53 @@ Treat local mode as the way to test the pipeline, tune the filters, and
 demonstrate the concept without a data-transfer conversation - then decide
 whether the analysis quality justifies a hosted run later.
 
+## Speed: measure first
+
+```bash
+python -m afsgap doctor --bench
+```
+
+This loads the model, measures tokens per second, and translates that into what
+a run will actually cost you - a stage generates roughly 800-2000 tokens of
+JSON, so the rate tells you whether a run is fifteen minutes or four hours. It
+then recommends settings for your machine.
+
+Rough guide:
+
+| tokens/sec | What to do |
+| --- | --- |
+| 15+ | Raise `AFSGAP_LOCAL_MAX_PAGES` to 8 and `AFSGAP_LOCAL_PROMPT_CHARS` to 24000; a 14B model is practical |
+| 6-15 | Defaults are right. A full run is roughly 15-30 minutes |
+| 2-6 | Cut the work: `AFSGAP_LOCAL_MAX_PAGES=3`, `AFSGAP_LOCAL_PROMPT_CHARS=8000`, `AFSGAP_LOCAL_MAX_ITEMS=4`, or a 3B model |
+| under 2 | Too slow for this workload. Use a 3B model, or run the analysis hosted and keep local mode for testing |
+
+### Why a stage can take a long time
+
+Three things drive it, in order:
+
+1. **How much you ask it to write.** Output dominates: constrained JSON
+   generation is slower than reading, and every extra list item costs tokens.
+   `AFSGAP_LOCAL_COMPACT=true` (default) caps list lengths and description
+   lengths, and is the single biggest lever.
+2. **How much you feed it.** Four pages of 2500 characters is about 2500 tokens
+   of input. The old defaults sent four times that.
+3. **Reloading the model.** Ollama unloads after a few idle minutes; reloading a
+   7B model can take longer than the generation. `AFSGAP_OLLAMA_KEEP_ALIVE=30m`
+   keeps it resident, and the model is preloaded before the first stage so that
+   the load time does not look like a hang.
+
+Responses stream, so `AFSGAP_OLLAMA_CHUNK_TIMEOUT` (180s) is the time allowed
+between tokens, not for the whole call: a model that is slow but working is
+never killed, while one that has genuinely hung still is. Progress is logged
+every 30 seconds with a token count and rate, so you can see it working.
+
 ## Tuning
 
 | Symptom | Setting |
 | --- | --- |
-| Ollama times out | raise `AFSGAP_OLLAMA_TIMEOUT`, or lower `AFSGAP_LOCAL_MAX_PAGES` |
+| "generating for Ns without finishing" | the model is working, just slowly - run `doctor --bench` and apply its recommendation, or lower `AFSGAP_LOCAL_MAX_ITEMS` |
+| "produced nothing for Ns" | the model is still loading or the machine is out of RAM - try a smaller model, or raise `AFSGAP_OLLAMA_CHUNK_TIMEOUT` |
+| JSON cut off mid-structure | raise `AFSGAP_OLLAMA_NUM_PREDICT` |
 | Stages look truncated | raise `AFSGAP_OLLAMA_NUM_CTX` (and check the model supports it) |
 | Prompt trimming in the log | lower `AFSGAP_LOCAL_PAGE_CHARS` or `AFSGAP_LOCAL_MAX_PAGES` |
 | `CERTIFICATE_VERIFY_FAILED` on every call | corporate TLS interception - see `docs/CORPORATE_NETWORK.md`; usually `pip install truststore` is the whole fix |

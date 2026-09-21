@@ -55,11 +55,22 @@ which is what `research/quotes.py` checks evidence quotes against. A smaller
 model is likelier to paraphrase a source into a quotation, so an unsupported
 quote is dropped and logged rather than published.
 
-Search backends live in `afsgap/search/`. `DuckDuckGoBackend` prefers the `ddgs`
-package and falls back to DuckDuckGo's HTML endpoint; domain restriction is
-applied twice, as `site:` operators to steer the engine and as a hard filter on
-the results, because `site:` is a hint and an SAP fact from a non-SAP domain is
-not an SAP fact.
+Search backends live in `afsgap/search/`: DuckDuckGo (via `ddgs`, falling back
+to its HTML endpoint), Mojeek, SearXNG, and `seeds` - a backend with no search
+engine at all, which reads URLs you supply in `data/seed_sources.yaml`. They
+compose into a fallback chain (`duckduckgo,mojeek,seeds`), because on a
+restricted network the question is not which engine is best but which one is
+reachable.
+
+Domain restriction is applied twice: `site:` operators to steer the engine,
+aimed only at the public, well-indexed domains in `search_priority`, and then a
+hard filter on the results. `site:` is a hint; an SAP fact from a non-SAP domain
+is not an SAP fact.
+
+Local generation is streamed. That is not cosmetic: with a non-streaming call
+the HTTP timeout is a wall clock on the whole request, so a slow-but-working
+model gets killed. Streaming moves the timeout between chunks, and lets the run
+report tokens per second while it works.
 
 ## Reading Confluence
 

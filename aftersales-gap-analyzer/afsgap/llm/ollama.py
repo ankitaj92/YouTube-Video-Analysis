@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Sequence, Type, TypeVar
+import time
+from typing import Any, Iterator, Sequence, Type, TypeVar
 
 import requests
 from pydantic import BaseModel, ValidationError
@@ -50,6 +51,7 @@ class OllamaClient:
         self.host = settings.ollama_host.rstrip("/")
         self.model = settings.ollama_model
         self.session = build_session(settings)      # for page fetches, not for Ollama itself
+        self._warm = False
 
     # ------------------------------------------------------------------
     # health
@@ -136,7 +138,7 @@ class OllamaClient:
             prompt = prompt[:budget] + "\n\n[content truncated to fit the local model's context]"
 
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": system},
+            {"role": "system", "content": system + self._compact_rule()},
             {"role": "user", "content": prompt},
         ]
 
@@ -170,38 +172,168 @@ class OllamaClient:
         raise RuntimeError(
             f"The local model '{self.model}' could not produce valid {schema.__name__} JSON after "
             f"{self.settings.ollama_max_attempts} attempts. Last error: {last_error}\n"
-            "Try a larger model (AFSGAP_OLLAMA_MODEL), or raise AFSGAP_OLLAMA_NUM_CTX if the "
-            "input is being truncated."
+            "Try a more capable model (AFSGAP_OLLAMA_MODEL), or raise AFSGAP_OLLAMA_NUM_PREDICT if "
+            "the JSON is being cut off mid-structure."
         )
 
+    # ------------------------------------------------------------------
+    # model lifecycle
+    # ------------------------------------------------------------------
+    def warm_up(self) -> None:
+        """Load the model before the first real call.
+
+        Otherwise the first stage silently includes however long it takes to
+        read several gigabytes off disk, which reads as a hang.
+        """
+        if self._warm:
+            return
+        logger.info("Loading %s into memory (first use can take a minute)...", self.model)
+        started = time.monotonic()
+        try:
+            requests.post(
+                f"{self.host}/api/generate",
+                json={"model": self.model, "prompt": "", "keep_alive": self.settings.ollama_keep_alive},
+                timeout=self.settings.ollama_chunk_timeout,
+            ).raise_for_status()
+        except Exception as exc:
+            logger.warning("Could not preload %s (%s); continuing anyway.", self.model, exc)
+            return
+        self._warm = True
+        logger.info("Model ready in %.0fs.", time.monotonic() - started)
+
+    def _compact_rule(self) -> str:
+        if not self.settings.local_compact:
+            return ""
+        limit = self.settings.local_max_items
+        return (
+            f"\n\nLENGTH BUDGET. Return at most {limit} items in any list, at most one evidence "
+            "quote per item, and keep every description to one or two sentences. A short, "
+            "well-grounded answer is correct; length is not quality, and a long answer will not "
+            "finish in reasonable time on this machine."
+        )
+
+    def benchmark(self, tokens: int = 120) -> dict[str, float]:
+        """Measure load time and generation speed, to size the settings.
+
+        The numbers that matter are tokens per second and how long the model
+        takes to load: a stage generates roughly 800-2000 tokens, so the rate
+        tells you directly whether a run is minutes or hours.
+        """
+        load_started = time.monotonic()
+        self.warm_up()
+        load_seconds = time.monotonic() - load_started
+
+        started = time.monotonic()
+        produced = 0
+        with requests.post(
+            f"{self.host}/api/chat",
+            json={
+                "model": self.model,
+                "messages": [{"role": "user", "content": "Count from 1 to 200, one number per line."}],
+                "stream": True,
+                "keep_alive": self.settings.ollama_keep_alive,
+                "options": {"temperature": 0, "num_ctx": 2048, "num_predict": tokens},
+            },
+            stream=True,
+            timeout=(10, self.settings.ollama_chunk_timeout),
+        ) as response:
+            response.raise_for_status()
+            for _ in self._iter_content(response):
+                produced += 1
+        elapsed = max(time.monotonic() - started, 1e-6)
+        return {
+            "load_seconds": load_seconds,
+            "tokens": produced,
+            "seconds": elapsed,
+            "tokens_per_second": produced / elapsed,
+        }
+
+    # ------------------------------------------------------------------
+    # streaming chat
+    # ------------------------------------------------------------------
     def _chat(self, messages: list[dict[str, str]], schema_json: dict[str, Any]) -> str:
+        """Stream one completion, returning the accumulated content.
+
+        Streaming matters for more than progress reporting: the read timeout
+        then applies between chunks rather than to the whole call, so a model
+        that is slow but working is never killed, while one that has genuinely
+        hung still is.
+        """
+        self.warm_up()
         payload = {
             "model": self.model,
             "messages": messages,
-            "stream": False,
+            "stream": True,
             "format": schema_json,
+            "keep_alive": self.settings.ollama_keep_alive,
             "options": {
                 "temperature": self.settings.ollama_temperature,
                 "num_ctx": self.settings.ollama_num_ctx,
+                "num_predict": self.settings.ollama_num_predict,
             },
         }
+
+        started = time.monotonic()
+        chunks: list[str] = []
+        tokens = 0
+        last_report = started
+
         try:
-            response = requests.post(
-                f"{self.host}/api/chat", json=payload, timeout=self.settings.ollama_timeout
-            )
-            response.raise_for_status()
+            with requests.post(
+                f"{self.host}/api/chat",
+                json=payload,
+                stream=True,
+                timeout=(10, self.settings.ollama_chunk_timeout),
+            ) as response:
+                response.raise_for_status()
+                for piece in self._iter_content(response):
+                    chunks.append(piece)
+                    tokens += 1
+                    now = time.monotonic()
+                    if now - last_report >= 30:
+                        rate = tokens / max(now - started, 1e-6)
+                        logger.info("  ... %d tokens in %.0fs (%.1f tok/s)", tokens, now - started, rate)
+                        last_report = now
+                    if self.settings.ollama_timeout and (now - started) > self.settings.ollama_timeout:
+                        raise OllamaUnavailableError(
+                            f"The local model has been generating for {now - started:.0f}s without "
+                            f"finishing (AFSGAP_OLLAMA_TIMEOUT). It is running, just too slowly for "
+                            "this input. Run `python -m afsgap doctor --bench` for settings this "
+                            "machine can sustain, or use a smaller model."
+                        )
         except requests.Timeout as exc:
             raise OllamaUnavailableError(
-                f"Ollama timed out after {self.settings.ollama_timeout}s. Local models are slow on "
-                "long inputs - raise AFSGAP_OLLAMA_TIMEOUT, or lower AFSGAP_LOCAL_MAX_PAGES."
+                f"Ollama produced nothing for {self.settings.ollama_chunk_timeout}s "
+                f"(AFSGAP_OLLAMA_CHUNK_TIMEOUT). The model is likely still loading, or the machine "
+                "is out of memory. Try a smaller model, or raise that value."
             ) from exc
-        except Exception as exc:
+        except requests.RequestException as exc:
             raise OllamaUnavailableError(f"Ollama request failed: {exc}") from exc
 
-        body = response.json()
-        content = ((body.get("message") or {}).get("content") or "").strip()
+        elapsed = time.monotonic() - started
+        logger.info("  generated %d tokens in %.0fs (%.1f tok/s)", tokens, elapsed, tokens / max(elapsed, 1e-6))
+
+        content = "".join(chunks).strip()
         # Some models still wrap JSON in fences despite the format constraint.
         if content.startswith("```"):
             content = content.strip("`")
             content = content.split("\n", 1)[-1] if content.lower().startswith("json") else content
         return content
+
+    @staticmethod
+    def _iter_content(response) -> Iterator[str]:
+        """Yield message content from Ollama's newline-delimited JSON stream."""
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if event.get("error"):
+                raise OllamaUnavailableError(f"Ollama reported an error: {event['error']}")
+            piece = (event.get("message") or {}).get("content") or ""
+            if piece:
+                yield piece
+            if event.get("done"):
+                break

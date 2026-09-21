@@ -174,7 +174,7 @@ class IndustryResearcher:
                     continue
                 seen.add(key)
                 works.append(work)
-        if not works:
+        if not works and queries:
             report.warn("[industry] OpenAlex returned no scholarly works.")
         # scrub abstracts before they ever reach a prompt
         cleaned: list[ScholarlyWork] = []

@@ -45,7 +45,7 @@ process name ─► Confluence ─┤                     ├─► SAP research
 | | Hosted | Local |
 | --- | --- | --- |
 | Generation | Claude API (`claude-opus-5`) | Ollama on your machine |
-| Search | Claude's server-side web search | DuckDuckGo |
+| Search | Claude's server-side web search | DuckDuckGo, Mojeek, SearXNG, or your own seed URLs |
 | Your process content | sent to the API | **never leaves the laptop** |
 | Quality | best | usable for testing; see `docs/LOCAL_MODE.md` |
 
@@ -53,6 +53,7 @@ process name ─► Confluence ─┤                     ├─► SAP research
 python -m afsgap run "Defective Parts Return"                # hosted
 python -m afsgap run "Defective Parts Return" --llm ollama   # fully local
 python -m afsgap doctor --llm ollama                         # check the local setup
+python -m afsgap doctor --llm ollama --bench                 # measure what this machine can do
 ```
 
 Both paths share everything else: the same prompts, exclusions, T-code
@@ -92,6 +93,7 @@ python -m afsgap confluence-search "<process name>"   # preview what would be ma
   --space AFTS         restrict the search to a space (repeatable)
   --new                skip the lookup and design the process from scratch
   --require-existing   fail rather than fall back to greenfield design
+  --search LIST        search backend or chain: duckduckgo,mojeek,searxng,seeds,none
   --offline            use fixtures - no API key, no Confluence, no network
   --no-cache           ignore cached research stages
   --skip-industry      SAP research and analysis only
